@@ -21,6 +21,13 @@ all-features = true
 # for unstable `#[doc(cfg(...))]` attribute.
 rustc-args = ["--cfg", "docsrs"]
 
+[workspace]
+members = [
+    "crates/byte-order-reader",
+    "crates/async-position-reader",
+    "crates/fbxcel-low"
+]
+
 [features]
 default = []
 
@@ -33,8 +40,14 @@ indextree = { version = "4", optional = true }
 libflate = "1.0.1"
 log = "0.4.4"
 string-interner = { version = "0.13.0", optional = true, default-features = false, features = ["backends", "inline-more", "std"] }
+thiserror = "1"
+futures-lite = "1.12"
+byte-order-reader = { path = "./crates/byte-order-reader" }
+
+async-trait = "0.1.53"
 
 [dev-dependencies]
+async-std = { version = "1.11", features = ["attributes"] }
 env_logger = "0.9.0"
 
 [badges]

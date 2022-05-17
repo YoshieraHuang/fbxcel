@@ -1,4 +1,4 @@
 //! Node attribute.
 
-pub(crate) mod type_;
+pub(crate) mod types;
 pub(crate) mod value;

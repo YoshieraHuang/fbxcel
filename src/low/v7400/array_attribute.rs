@@ -1,10 +1,11 @@
 //! Low-level data types related to array type node attributes.
 
-use std::io;
+use async_trait::async_trait;
+use futures_lite::AsyncRead;
+use byte_order_reader::FromAsyncReader;
 
 use crate::pull_parser::{
     error::{Compression, DataError},
-    v7400::FromReader,
     Error as ParserError,
 };
 
@@ -52,8 +53,14 @@ impl From<ArrayAttributeEncoding> for Compression {
     }
 }
 
-impl FromReader for ArrayAttributeEncoding {
-    fn from_reader(reader: &mut impl io::Read) -> Result<Self, ParserError> {
+#[async_trait]
+impl<R> FromAsyncReader<R> for ArrayAttributeEncoding
+where
+    R: AsyncRead + Unpin + Send,
+{
+    type Error = ParserError;
+
+    async fn from_async_reader(reader: &mut R) -> Result<Self, ParserError> {
         let raw_encoding = u32::from_reader(reader)?;
         let encoding = ArrayAttributeEncoding::from_u32(raw_encoding)
             .ok_or(DataError::InvalidArrayAttributeEncoding(raw_encoding))?;
@@ -72,8 +79,14 @@ pub(crate) struct ArrayAttributeHeader {
     pub(crate) bytelen: u32,
 }
 
-impl FromReader for ArrayAttributeHeader {
-    fn from_reader(reader: &mut impl io::Read) -> Result<Self, ParserError> {
+#[async_trait]
+impl<R> FromAsyncReader<R> for ArrayAttributeHeader
+where
+    R: AsyncRead + Unpin + Send,
+{
+    type Error = ParserError;
+
+    async fn from_async_reader(reader: &mut R) -> Result<Self, ParserError> {
         let elements_count = u32::from_reader(reader)?;
         let encoding = ArrayAttributeEncoding::from_reader(reader)?;
         let bytelen = u32::from_reader(reader)?;

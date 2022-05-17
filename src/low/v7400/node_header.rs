@@ -1,9 +1,9 @@
 //! Node header.
 
-use crate::pull_parser::{
-    v7400::{FromParser, Parser},
-    Error as ParserError, ParserSource,
-};
+use async_trait::async_trait;
+use futures_lite::AsyncRead;
+use byte_order_reader::FromAsyncReader;
+use futures_lite::io;
 
 /// Node header.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -40,30 +40,46 @@ impl NodeHeader {
     }
 }
 
-impl FromParser for NodeHeader {
-    fn read_from_parser<R>(parser: &mut Parser<R>) -> Result<Self, ParserError>
-    where
-        R: ParserSource,
-    {
-        let (end_offset, num_attributes, bytelen_attributes) = if parser.fbx_version().raw() < 7500
-        {
-            let eo = u64::from(parser.parse::<u32>()?);
-            let na = u64::from(parser.parse::<u32>()?);
-            let ba = u64::from(parser.parse::<u32>()?);
-            (eo, na, ba)
-        } else {
-            let eo = parser.parse::<u64>()?;
-            let na = parser.parse::<u64>()?;
-            let ba = parser.parse::<u64>()?;
-            (eo, na, ba)
-        };
-        let bytelen_name = parser.parse::<u8>()?;
+/// [`NodeHeader`] after version 7500
+pub struct NodeHeaderAfter7500(pub NodeHeader);
 
-        Ok(Self {
-            end_offset,
-            num_attributes,
-            bytelen_attributes,
-            bytelen_name,
-        })
+/// [`NodeHeader`] before version 7500
+pub struct NodeHeaderBefore7500(pub NodeHeader);
+
+#[async_trait]
+impl<R> FromAsyncReader<R> for NodeHeaderBefore7500 
+where
+    R: AsyncRead + Unpin + Send
+{
+    type Error = io::Error;
+
+    async fn from_async_reader(reader: R) -> io::Result<Self> {
+        let end_offset = u32::from_async_reader(&mut reader).await? as u64;
+        let num_attributes = u32::from_async_reader(&mut reader).await? as u64;
+        let bytelen_attributes = u32::from_async_reader(&mut reader).await? as u64;
+        let bytelen_name = u8::from_async_reader(&mut reader).await?;
+        let inner = NodeHeader {
+            end_offset, num_attributes, bytelen_attributes, bytelen_name
+        };
+        Ok(Self(inner))
+    }
+}
+
+#[async_trait]
+impl<R> FromAsyncReader<R> for NodeHeaderBefore7500 
+where
+    R: AsyncRead + Unpin + Send
+{
+    type Error = io::Error;
+
+    async fn from_async_reader(reader: R) -> io::Result<Self> {
+        let end_offset = u64::from_async_reader(&mut reader).await?;
+        let num_attributes = u64::from_async_reader(&mut reader).await?;
+        let bytelen_attributes = u64::from_async_reader(&mut reader).await?;
+        let bytelen_name = u8::from_async_reader(&mut reader).await?;
+        let inner = NodeHeader {
+            end_offset, num_attributes, bytelen_attributes, bytelen_name
+        };
+        Ok(Self(inner))
     }
 }

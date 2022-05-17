@@ -2,7 +2,7 @@
 //!
 //! To see how to setup a parser, see module documentation of [`pull_parser`][`super`].
 
-pub(crate) use self::read::{FromParser, FromReader};
+pub(crate) use self::read::{FromParser};
 pub use self::{
     attribute::{Attributes, LoadAttribute},
     event::{Event, StartNode},

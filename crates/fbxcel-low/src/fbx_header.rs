@@ -2,12 +2,12 @@
 
 use futures_lite::{io, prelude::*};
 
+use byte_order_reader::AsyncByteOrderRead;
 use byteorder::LE;
 use log::info;
-use byte_order_reader::AsyncByteOrderRead;
 use thiserror::Error;
 
-use crate::low::FbxVersion;
+use crate::FbxVersion;
 
 /// Magic binary length.
 const MAGIC_LEN: usize = 23;
@@ -58,7 +58,7 @@ impl FbxHeader {
     }
 
     /// Returns header length in bytes.
-    pub(crate) fn len(self) -> usize {
+    pub fn len(self) -> usize {
         /// FBX version length.
         const VERSION_LEN: usize = 4;
 
@@ -75,7 +75,9 @@ mod tests {
     async fn header_ok() {
         let raw_header = b"Kaydara FBX Binary  \x00\x1a\x00\xe8\x1c\x00\x00";
         let mut cursor = Cursor::new(raw_header);
-        let header = FbxHeader::load(cursor).await.expect("Should never fail");
+        let header = FbxHeader::load(&mut cursor)
+            .await
+            .expect("Should never fail");
         assert_eq!(
             header.version(),
             FbxVersion::new(7400),
@@ -95,7 +97,7 @@ mod tests {
         // `HeaderError` may contain `io::Error` and is not comparable.
         assert!(
             matches!(
-                FbxHeader::load(cursor).await,
+                FbxHeader::load(&mut cursor).await,
                 Err(HeaderError::MagicNotDetected)
             ),
             "Invalid magic should be reported by `MagicNotDetected`"

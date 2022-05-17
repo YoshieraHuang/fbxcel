@@ -1,8 +1,10 @@
 //! Node attribute type.
 
-use std::io;
+use async_trait::async_trait;
+use futures_lite::AsyncRead;
+use byte_order_reader::{AsyncByteOrderRead, FromAsyncReader};
 
-use crate::pull_parser::{error::DataError, v7400::FromReader, Error as ParserError};
+use crate::pull_parser::{error::DataError, Error as ParserError};
 
 /// Node attribute type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -78,9 +80,16 @@ impl AttributeType {
     }
 }
 
-impl FromReader for AttributeType {
-    fn from_reader(reader: &mut impl io::Read) -> Result<Self, ParserError> {
-        let type_code = u8::from_reader(reader)?;
+#[async_trait]
+impl<R> FromAsyncReader<R> for AttributeType
+where
+R: AsyncRead + Unpin + Send
+{
+    type Error = ParserError;
+
+    async fn from_async_reader(reader: &mut R) -> Result<Self, ParserError>
+    {
+        let type_code = reader.read_u8().await?;
         let attr_type = Self::from_type_code(type_code)
             .ok_or(DataError::InvalidAttributeTypeCode(type_code))?;
         Ok(attr_type)

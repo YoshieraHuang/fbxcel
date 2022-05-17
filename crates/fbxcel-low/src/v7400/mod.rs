@@ -2,10 +2,10 @@
 
 pub use self::{
     array_attribute::ArrayAttributeEncoding,
-    attribute::{type_::AttributeType, value::AttributeValue},
+    attribute::{types::AttributeType, value::AttributeValue},
     fbx_footer::FbxFooter,
 };
-pub(crate) use self::{
+pub use self::{
     array_attribute::ArrayAttributeHeader, node_header::NodeHeader,
     special_attribute::SpecialAttributeHeader,
 };

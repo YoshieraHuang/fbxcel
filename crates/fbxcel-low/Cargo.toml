@@ -1,0 +1,17 @@
+[package]
+name = "fbxcel-low"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+byte-order-reader = { path = "../byte-order-reader" }
+thiserror = "1"
+byteorder = "1"
+futures-lite = "1.12"
+log = "0.4"
+async-trait = "0.1"
+
+[dev-dependencies]
+async-std = { version = "1.11", features = [ "attributes" ] }

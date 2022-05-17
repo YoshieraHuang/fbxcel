@@ -1,8 +1,10 @@
 //! Low-level data types for binary and stirng type node attributes.
 
-use std::io;
+use async_trait::async_trait;
+use futures_lite::AsyncRead;
+use byte_order_reader::FromAsyncReader;
 
-use crate::pull_parser::{v7400::FromReader, Error as ParserError};
+use crate::pull_parser::Error as ParserError;
 
 /// A header type for array-type attributes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -11,10 +13,14 @@ pub(crate) struct SpecialAttributeHeader {
     pub(crate) bytelen: u32,
 }
 
-impl FromReader for SpecialAttributeHeader {
-    fn from_reader(reader: &mut impl io::Read) -> Result<Self, ParserError> {
-        let bytelen = u32::from_reader(reader)?;
+#[async_trait]
+impl<R> FromAsyncReader for SpecialAttributeHeader
+where
+    R: AsyncRead + Unpin + Send,
+{
+    type Error = ParserError;
 
-        Ok(Self { bytelen })
+    async fn from_async_reader(reader: &mut R) -> Result<Self, ParserError> {
+        u32::from_async_reader(reader).map(|res| res.map(|bytelen| Self { bytelen }))
     }
 }

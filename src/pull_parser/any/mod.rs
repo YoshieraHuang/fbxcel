@@ -19,7 +19,7 @@ mod error;
 #[non_exhaustive]
 pub enum AnyParser<R> {
     /// FBX 7.4 or later.
-    V7400(pull_parser::v7400::Parser<R>),
+    V7400(super::v7400::Parser<R>),
 }
 
 impl<R: ParserSource> AnyParser<R> {
@@ -50,8 +50,8 @@ fn parser_version(header: FbxHeader) -> Result<ParserVersion> {
 /// This works for seekable readers (which implement [`std::io::Seek`]), but
 /// [`from_seekable_reader`] should be used for them, because it is more
 /// efficent.
-pub fn from_reader<R: Read>(mut reader: R) -> Result<AnyParser<PlainSource<R>>> {
-    let header = FbxHeader::load(&mut reader)?;
+pub async fn from_reader<R: Read>(mut reader: R) -> Result<AnyParser<PlainSource<R>>> {
+    let header = FbxHeader::load(&mut reader).await?;
     match parser_version(header)? {
         ParserVersion::V7400 => {
             let parser = pull_parser::v7400::from_reader(header, reader).unwrap_or_else(|e| {
