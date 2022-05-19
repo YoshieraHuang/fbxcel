@@ -2,93 +2,31 @@
 //!
 //! This is mainly syntax and low-level structure error.
 
-use std::{error, fmt, string::FromUtf8Error};
+use fbxcel_low::{v7400::ArrayAttributeEncoding, LowError};
+use std::string::FromUtf8Error;
+use thiserror::Error;
 
 /// Data error.
-#[derive(Debug)]
-#[non_exhaustive]
+#[allow(missing_docs)]
+#[derive(Debug, Error)]
 pub enum DataError {
-    /// Data with broken compression.
-    BrokenCompression(Compression, Box<dyn std::error::Error + Send + Sync>),
-    /// FBX footer is broken.
-    ///
-    /// Detail is not available because the footer may contain variable length
-    /// field, and it is hard to identify what is actually broken.
+    #[error("Data with broken compression (codec={0:?}): {1:?}")]
+    BrokenCompression(
+        Compression,
+        #[source] Box<dyn std::error::Error + Send + Sync>,
+    ),
+    #[error("FBX footer is broken")]
     BrokenFbxFooter,
-    /// Got an unknown array attribute encoding.
-    InvalidArrayAttributeEncoding(u32),
-    /// Invalid node attribute type code.
-    ///
-    /// The `u8` is the code the parser got.
-    InvalidAttributeTypeCode(u8),
-    /// Invalid node name encoding.
-    ///
-    /// This error indicates that the node name is non-valid UTF-8.
-    InvalidNodeNameEncoding(FromUtf8Error),
-    /// Node attribute error.
-    ///
-    /// This error indicates that some error happened while reading node
-    /// attributes.
+    #[error(transparent)]
+    Low(#[from] LowError),
+    #[error("Invalid node name encoding: {0}")]
+    InvalidNodeNameEncoding(#[source] FromUtf8Error),
+    #[error("Some error occured while reading node attributes")]
     NodeAttributeError,
-    /// Node length mismatch.
-    ///
-    /// This error indicates that a node ends at the position which differs from
-    /// the offset declared at the header.
-    ///
-    /// The former `u64` is expected position, the latter `Option<u64>` is the
-    /// actual position the node ends.
-    /// If the error is detected before the node actually ends, the actual
-    /// position will be `None`.
+    #[error("Node ends with unexpected position: expected {0}, got {1:?}")]
     NodeLengthMismatch(u64, Option<u64>),
-    /// Unexpected attribute value or type.
-    ///
-    /// The former is the expected, the latter is a description of the actual value.
+    #[error("Unexpected attribute value or type: expected {0}, got {1}")]
     UnexpectedAttribute(String, String),
-}
-
-impl error::Error for DataError {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
-        match self {
-            DataError::BrokenCompression(_, e) => Some(e.as_ref()),
-            DataError::InvalidNodeNameEncoding(e) => Some(e),
-            _ => None,
-        }
-    }
-}
-
-impl fmt::Display for DataError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            DataError::BrokenFbxFooter => write!(f, "FBX footer is broken"),
-            DataError::BrokenCompression(codec, e) => write!(
-                f,
-                "Data with broken compression (codec={:?}): {:?}",
-                codec, e
-            ),
-            DataError::InvalidArrayAttributeEncoding(encoding) => {
-                write!(f, "Unknown array attribute encoding: got {:?}", encoding)
-            }
-            DataError::InvalidAttributeTypeCode(code) => {
-                write!(f, "Invalid node attribute type code: {:?}", code)
-            }
-            DataError::InvalidNodeNameEncoding(e) => {
-                write!(f, "Invalid node name encoding: {:?}", e)
-            }
-            DataError::NodeAttributeError => {
-                write!(f, "Some error occured while reading node attributes")
-            }
-            DataError::NodeLengthMismatch(expected, got) => write!(
-                f,
-                "Node ends with unexpected position: expected {}, got {:?}",
-                expected, got
-            ),
-            DataError::UnexpectedAttribute(expected, got) => write!(
-                f,
-                "Unexpected attribute value or type: expected {}, got {}",
-                expected, got
-            ),
-        }
-    }
 }
 
 /// Compression format or algorithm.
@@ -96,4 +34,15 @@ impl fmt::Display for DataError {
 pub enum Compression {
     /// ZLIB compression.
     Zlib,
+}
+
+impl From<ArrayAttributeEncoding> for Compression {
+    fn from(v: ArrayAttributeEncoding) -> Self {
+        match v {
+            ArrayAttributeEncoding::Direct => unreachable!(
+                "Data with `ArrayAttributeEncoding::Direct` should not cause (de)compression error",
+            ),
+            ArrayAttributeEncoding::Zlib => Self::Zlib,
+        }
+    }
 }

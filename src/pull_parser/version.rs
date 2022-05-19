@@ -2,7 +2,7 @@
 
 use log::info;
 
-use crate::low::FbxVersion;
+use fbxcel_low::FbxVersion;
 
 /// Parser version for each version of FBX.
 ///

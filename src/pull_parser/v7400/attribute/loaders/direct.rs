@@ -1,16 +1,16 @@
 //! Direct attribute value loader.
 
-use std::io;
-
-use crate::{
-    low::v7400::AttributeValue,
-    pull_parser::{v7400::LoadAttribute, Result},
-};
+use crate::pull_parser::{v7400::LoadAttribute, Result};
+use async_trait::async_trait;
+use fbxcel_low::v7400::AttributeValue;
+use futures_core::Stream;
+use futures_lite::{AsyncRead, AsyncReadExt, StreamExt};
 
 /// Loader for [`AttributeValue`].
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DirectLoader;
 
+#[async_trait]
 impl LoadAttribute for DirectLoader {
     type Output = AttributeValue;
 
@@ -18,79 +18,79 @@ impl LoadAttribute for DirectLoader {
         "any type".into()
     }
 
-    fn load_bool(self, v: bool) -> Result<Self::Output> {
+    async fn load_bool(self, v: bool) -> Result<Self::Output> {
         Ok(AttributeValue::Bool(v))
     }
 
-    fn load_i16(self, v: i16) -> Result<Self::Output> {
+    async fn load_i16(self, v: i16) -> Result<Self::Output> {
         Ok(AttributeValue::I16(v))
     }
 
-    fn load_i32(self, v: i32) -> Result<Self::Output> {
+    async fn load_i32(self, v: i32) -> Result<Self::Output> {
         Ok(AttributeValue::I32(v))
     }
 
-    fn load_i64(self, v: i64) -> Result<Self::Output> {
+    async fn load_i64(self, v: i64) -> Result<Self::Output> {
         Ok(AttributeValue::I64(v))
     }
 
-    fn load_f32(self, v: f32) -> Result<Self::Output> {
+    async fn load_f32(self, v: f32) -> Result<Self::Output> {
         Ok(AttributeValue::F32(v))
     }
 
-    fn load_f64(self, v: f64) -> Result<Self::Output> {
+    async fn load_f64(self, v: f64) -> Result<Self::Output> {
         Ok(AttributeValue::F64(v))
     }
 
-    fn load_seq_bool(
+    async fn load_seq_bool(
         self,
-        iter: impl Iterator<Item = Result<bool>>,
+        iter: impl Stream<Item = Result<bool>> + Send + 'async_trait,
         _len: usize,
     ) -> Result<Self::Output> {
-        Ok(AttributeValue::ArrBool(iter.collect::<Result<_>>()?))
+        Ok(AttributeValue::ArrBool(iter.try_collect().await?))
     }
 
-    fn load_seq_i32(
+    async fn load_seq_i32(
         self,
-        iter: impl Iterator<Item = Result<i32>>,
+        iter: impl Stream<Item = Result<i32>> + Send + 'async_trait,
         _len: usize,
     ) -> Result<Self::Output> {
-        Ok(AttributeValue::ArrI32(iter.collect::<Result<_>>()?))
+        Ok(AttributeValue::ArrI32(iter.try_collect().await?))
     }
 
-    fn load_seq_i64(
+    async fn load_seq_i64(
         self,
-        iter: impl Iterator<Item = Result<i64>>,
+        iter: impl Stream<Item = Result<i64>> + Send + 'async_trait,
         _len: usize,
     ) -> Result<Self::Output> {
-        Ok(AttributeValue::ArrI64(iter.collect::<Result<_>>()?))
+        Ok(AttributeValue::ArrI64(iter.try_collect().await?))
     }
 
-    fn load_seq_f32(
+    async fn load_seq_f32(
         self,
-        iter: impl Iterator<Item = Result<f32>>,
+        iter: impl Stream<Item = Result<f32>> + Send + 'async_trait,
         _len: usize,
     ) -> Result<Self::Output> {
-        Ok(AttributeValue::ArrF32(iter.collect::<Result<_>>()?))
+        Ok(AttributeValue::ArrF32(iter.try_collect().await?))
     }
 
-    fn load_seq_f64(
+    async fn load_seq_f64(
         self,
-        iter: impl Iterator<Item = Result<f64>>,
+        iter: impl Stream<Item = Result<f64>> + Send + 'async_trait,
         _len: usize,
     ) -> Result<Self::Output> {
-        Ok(AttributeValue::ArrF64(iter.collect::<Result<_>>()?))
+        Ok(AttributeValue::ArrF64(iter.try_collect().await?))
     }
 
-    fn load_binary(self, mut reader: impl io::Read, len: u64) -> Result<Self::Output> {
+    async fn load_binary(self, mut reader: impl AsyncRead + Send + 'async_trait + Unpin, len: u64) -> Result<Self::Output> {
         let mut buf = Vec::with_capacity(len as usize);
-        reader.read_to_end(&mut buf)?;
+        reader.read_to_end(&mut buf).await?;
         Ok(AttributeValue::Binary(buf))
     }
 
-    fn load_string(self, mut reader: impl io::Read, len: u64) -> Result<Self::Output> {
+    async fn load_string(self, mut reader: impl AsyncRead + Send + 'async_trait + Unpin, len: u64) -> Result<Self::Output> {
         let mut buf = String::with_capacity(len as usize);
-        reader.read_to_string(&mut buf)?;
+        reader.read_to_string(&mut buf).await?;
         Ok(AttributeValue::String(buf))
     }
 }

@@ -1,10 +1,14 @@
-use std::{pin::Pin, task::{Context, Poll}, io::Result};
+use std::{
+    io::Result,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 use async_trait::async_trait;
-use futures_lite::{AsyncSeek, AsyncRead, AsyncBufRead};
+use futures_lite::{AsyncBufRead, AsyncRead, AsyncSeek};
 use pin_project_lite::pin_project;
 
-use crate::{InnerAsyncPositionReader, AsyncPositionRead};
+use crate::{AsyncPositionRead, InnerAsyncPositionReader};
 
 pin_project! {
     /// Reader with seekable backend.
@@ -17,36 +21,46 @@ pin_project! {
 
 impl<R> SeekableReader<R>
 where
-    R: AsyncRead + AsyncSeek + Unpin + Send
+    R: AsyncRead + AsyncSeek + Unpin + Send,
 {
     /// Create a new `SeekableReader`
     pub fn new(inner: R) -> Self {
-        Self { inner: InnerAsyncPositionReader::new(inner) }
+        Self {
+            inner: InnerAsyncPositionReader::new(inner),
+        }
     }
 
     pub fn with_offset(inner: R, offset: usize) -> Self {
         Self {
-            inner: InnerAsyncPositionReader::with_offset(inner, offset)
+            inner: InnerAsyncPositionReader::with_offset(inner, offset),
         }
     }
 }
 
 impl<R> AsyncRead for SeekableReader<R>
 where
-    R: AsyncRead + Unpin + Send
+    R: AsyncRead + Unpin + Send,
 {
-    fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<Result<usize>> {
         self.project().inner.poll_read(cx, buf)
     }
 
-    fn poll_read_vectored(self: Pin<&mut Self>, cx: &mut Context<'_>, bufs: &mut [std::io::IoSliceMut<'_>]) -> Poll<Result<usize>> {
+    fn poll_read_vectored(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        bufs: &mut [std::io::IoSliceMut<'_>],
+    ) -> Poll<Result<usize>> {
         self.project().inner.poll_read_vectored(cx, bufs)
     }
 }
 
 impl<R> AsyncBufRead for SeekableReader<R>
 where
-    R: AsyncBufRead + Unpin + Send
+    R: AsyncBufRead + Unpin + Send,
 {
     fn poll_fill_buf(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<&[u8]>> {
         self.project().inner.poll_fill_buf(cx)
@@ -60,9 +74,9 @@ where
 #[async_trait]
 impl<R> AsyncPositionRead for SeekableReader<R>
 where
-    R: AsyncRead + AsyncSeek + Unpin + Send
+    R: AsyncRead + AsyncSeek + Unpin + Send,
 {
-    fn position(&self) ->u64 {
+    fn position(&self) -> u64 {
         self.inner.position() as u64
     }
 
@@ -81,10 +95,12 @@ pin_project! {
 
 impl<R> SimpleReader<R>
 where
-    R: AsyncRead + Unpin + Send
+    R: AsyncRead + Unpin + Send,
 {
     pub fn new(inner: R) -> Self {
-        Self { inner: InnerAsyncPositionReader::new(inner) }
+        Self {
+            inner: InnerAsyncPositionReader::new(inner),
+        }
     }
 
     pub fn with_offset(inner: R, offset: usize) -> Self {
@@ -96,20 +112,28 @@ where
 
 impl<R> AsyncRead for SimpleReader<R>
 where
-    R: AsyncRead + Unpin + Send
+    R: AsyncRead + Unpin + Send,
 {
-    fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<Result<usize>> {
         self.project().inner.poll_read(cx, buf)
     }
 
-    fn poll_read_vectored(self: Pin<&mut Self>, cx: &mut Context<'_>, bufs: &mut [std::io::IoSliceMut<'_>]) -> Poll<Result<usize>> {
+    fn poll_read_vectored(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        bufs: &mut [std::io::IoSliceMut<'_>],
+    ) -> Poll<Result<usize>> {
         self.project().inner.poll_read_vectored(cx, bufs)
     }
 }
 
 impl<R> AsyncBufRead for SimpleReader<R>
 where
-    R: AsyncBufRead + Unpin + Send
+    R: AsyncBufRead + Unpin + Send,
 {
     fn poll_fill_buf(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<&[u8]>> {
         self.project().inner.poll_fill_buf(cx)
@@ -122,9 +146,9 @@ where
 
 impl<R> AsyncPositionRead for SimpleReader<R>
 where
-    R: AsyncRead + Unpin + Send
+    R: AsyncRead + Unpin + Send,
 {
-    fn position(&self) ->u64 {
+    fn position(&self) -> u64 {
         self.inner.position() as u64
     }
 }

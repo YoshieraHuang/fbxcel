@@ -1,38 +1,17 @@
 //! Invalid operation.
 
-use std::{error, fmt};
-
-use crate::{low::FbxVersion, pull_parser::ParserVersion};
+use crate::pull_parser::ParserVersion;
+use fbxcel_low::FbxVersion;
+use thiserror::Error;
 
 /// Invalid operation.
-#[derive(Debug)]
-#[non_exhaustive]
+#[derive(Debug, Error)]
+#[allow(missing_docs)]
 pub enum OperationError {
-    /// Attempt to parse more data while the parsing is aborted.
+    #[error("Attempt to parse more data while the parsing is aborted")]
     AlreadyAborted,
-    /// Attempt to parse more data while the parsing is (successfully) finished.
+    #[error("Attempt to parse more data while the parsing is (successfully) finished.")]
     AlreadyFinished,
-    /// Attempt to create a parser with unsupported FBX version.
+    #[error("Unsupported FBX version: parser={0:?}, fbx={1:?}")]
     UnsupportedFbxVersion(ParserVersion, FbxVersion),
-}
-
-impl error::Error for OperationError {}
-
-impl fmt::Display for OperationError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            OperationError::AlreadyAborted => {
-                write!(f, "Attempt to parse more data while the parsing is aborted")
-            }
-            OperationError::AlreadyFinished => write!(
-                f,
-                "Attempt to parse more data while the parsing is successfully finished"
-            ),
-            OperationError::UnsupportedFbxVersion(parser, fbx) => write!(
-                f,
-                "Unsupported FBX version: parser={:?}, fbx={:?}",
-                parser, fbx
-            ),
-        }
-    }
 }

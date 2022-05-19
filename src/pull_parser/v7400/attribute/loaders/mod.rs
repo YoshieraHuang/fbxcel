@@ -3,9 +3,9 @@
 pub use self::{
     direct::DirectLoader,
     single::{ArrayLoader, BinaryLoader, PrimitiveLoader, StringLoader},
-    type_::TypeLoader,
+    types::TypeLoader,
 };
 
 mod direct;
 mod single;
-mod type_;
+mod types;

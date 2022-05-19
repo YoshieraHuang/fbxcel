@@ -1,6 +1,10 @@
-use std::{io::{SeekFrom, Result}, pin::Pin, task::{Context, Poll}};
+use std::{
+    io::{Result, SeekFrom},
+    pin::Pin,
+    task::{Context, Poll},
+};
 
-use futures_lite::{AsyncRead, AsyncSeek, AsyncSeekExt, AsyncBufRead};
+use futures_lite::{AsyncBufRead, AsyncRead, AsyncSeek, AsyncSeekExt};
 use pin_project_lite::pin_project;
 
 pin_project! {
@@ -17,9 +21,9 @@ pin_project! {
     }
 }
 
-impl<R> InnerAsyncPositionReader<R> 
+impl<R> InnerAsyncPositionReader<R>
 where
-    R: AsyncRead + Unpin
+    R: AsyncRead + Unpin,
 {
     /// Create a new `SimpleAsyncPositionReader`
     pub fn new(inner: R) -> Self {
@@ -27,12 +31,15 @@ where
     }
 
     pub fn with_offset(inner: R, offset: usize) -> Self {
-        Self { inner, position: offset }
+        Self {
+            inner,
+            position: offset,
+        }
     }
 
     pub fn into_inner(self) -> R {
         self.inner
-    } 
+    }
 
     pub fn position(&self) -> usize {
         self.position
@@ -40,7 +47,7 @@ where
 
     pub async fn skip_distance(&mut self, distance: u64) -> Result<()>
     where
-        R: AsyncSeek
+        R: AsyncSeek,
     {
         let mut distance = distance;
         while distance > 0 {
@@ -60,20 +67,28 @@ where
 
 impl<R> AsyncRead for InnerAsyncPositionReader<R>
 where
-    R: AsyncRead + Unpin + Send
+    R: AsyncRead + Unpin + Send,
 {
-    fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<Result<usize>> {
         self.project().inner.poll_read(cx, buf)
     }
-    
-    fn poll_read_vectored(self: Pin<&mut Self>, cx: &mut Context<'_>, bufs: &mut [std::io::IoSliceMut<'_>]) -> Poll<Result<usize>> {
+
+    fn poll_read_vectored(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        bufs: &mut [std::io::IoSliceMut<'_>],
+    ) -> Poll<Result<usize>> {
         self.project().inner.poll_read_vectored(cx, bufs)
     }
 }
 
 impl<R> AsyncBufRead for InnerAsyncPositionReader<R>
 where
-    R: AsyncBufRead + Unpin + Send
+    R: AsyncBufRead + Unpin + Send,
 {
     fn poll_fill_buf(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<&[u8]>> {
         self.project().inner.poll_fill_buf(cx)

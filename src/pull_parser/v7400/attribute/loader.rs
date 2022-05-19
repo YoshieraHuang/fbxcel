@@ -1,6 +1,8 @@
 //! Node attribute loader.
 
-use std::{fmt, io};
+use async_trait::async_trait;
+use futures_core::Stream;
+use futures_lite::{AsyncRead, AsyncBufRead};
 
 use crate::pull_parser::{error::DataError, Result};
 
@@ -18,7 +20,8 @@ use crate::pull_parser::{error::DataError, Result};
 ///
 /// For simple types, [`pull_parser::v7400::attribute::loaders`][`super::loaders`] module contains
 /// useful loaders.
-pub trait LoadAttribute: Sized + fmt::Debug {
+#[async_trait]
+pub trait LoadAttribute: Sized + std::fmt::Debug {
     /// Result type on successful read.
     type Output;
 
@@ -26,75 +29,75 @@ pub trait LoadAttribute: Sized + fmt::Debug {
     fn expecting(&self) -> String;
 
     /// Loads boolean value.
-    fn load_bool(self, _: bool) -> Result<Self::Output> {
+    async fn load_bool(self, _: bool) -> Result<Self::Output> {
         Err(DataError::UnexpectedAttribute(self.expecting(), "boolean".into()).into())
     }
 
     /// Loads `i16` value.
-    fn load_i16(self, _: i16) -> Result<Self::Output> {
+    async fn load_i16(self, _: i16) -> Result<Self::Output> {
         Err(DataError::UnexpectedAttribute(self.expecting(), "i16".into()).into())
     }
 
     /// Loads `i32` value.
-    fn load_i32(self, _: i32) -> Result<Self::Output> {
+    async fn load_i32(self, _: i32) -> Result<Self::Output> {
         Err(DataError::UnexpectedAttribute(self.expecting(), "i32".into()).into())
     }
 
     /// Loads `i64` value.
-    fn load_i64(self, _: i64) -> Result<Self::Output> {
+    async fn load_i64(self, _: i64) -> Result<Self::Output> {
         Err(DataError::UnexpectedAttribute(self.expecting(), "i64".into()).into())
     }
 
     /// Loads `f32` value.
-    fn load_f32(self, _: f32) -> Result<Self::Output> {
+    async fn load_f32(self, _: f32) -> Result<Self::Output> {
         Err(DataError::UnexpectedAttribute(self.expecting(), "f32".into()).into())
     }
 
     /// Loads `f64` value.
-    fn load_f64(self, _: f64) -> Result<Self::Output> {
+    async fn load_f64(self, _: f64) -> Result<Self::Output> {
         Err(DataError::UnexpectedAttribute(self.expecting(), "f64".into()).into())
     }
 
     /// Loads boolean array.
-    fn load_seq_bool(
+    async fn load_seq_bool(
         self,
-        _: impl Iterator<Item = Result<bool>>,
+        _: impl Stream<Item = Result<bool>> + Send + 'async_trait,
         _len: usize,
     ) -> Result<Self::Output> {
         Err(DataError::UnexpectedAttribute(self.expecting(), "boolean array".into()).into())
     }
 
     /// Loads `i32` array.
-    fn load_seq_i32(
+    async fn load_seq_i32(
         self,
-        _: impl Iterator<Item = Result<i32>>,
+        _: impl Stream<Item = Result<i32>> + Send + 'async_trait,
         _len: usize,
     ) -> Result<Self::Output> {
         Err(DataError::UnexpectedAttribute(self.expecting(), "i32 array".into()).into())
     }
 
     /// Loads `i64` array.
-    fn load_seq_i64(
+    async fn load_seq_i64(
         self,
-        _: impl Iterator<Item = Result<i64>>,
+        _: impl Stream<Item = Result<i64>>  + Send + 'async_trait,
         _len: usize,
     ) -> Result<Self::Output> {
         Err(DataError::UnexpectedAttribute(self.expecting(), "i64 array".into()).into())
     }
 
     /// Loads `f32` array.
-    fn load_seq_f32(
+    async fn load_seq_f32(
         self,
-        _: impl Iterator<Item = Result<f32>>,
+        _: impl Stream<Item = Result<f32>>  + Send + 'async_trait,
         _len: usize,
     ) -> Result<Self::Output> {
         Err(DataError::UnexpectedAttribute(self.expecting(), "f32 array".into()).into())
     }
 
     /// Loads `f64` array.
-    fn load_seq_f64(
+    async fn load_seq_f64(
         self,
-        _: impl Iterator<Item = Result<f64>>,
+        _: impl Stream<Item = Result<f64>>  + Send + 'async_trait,
         _len: usize,
     ) -> Result<Self::Output> {
         Err(DataError::UnexpectedAttribute(self.expecting(), "f64 array".into()).into())
@@ -103,28 +106,28 @@ pub trait LoadAttribute: Sized + fmt::Debug {
     /// Loads binary value.
     ///
     /// This method should return error when the given reader returned error.
-    fn load_binary(self, _: impl io::Read, _len: u64) -> Result<Self::Output> {
+    async fn load_binary(self, _: impl AsyncRead + Send + 'async_trait + Unpin, _len: u64) -> Result<Self::Output> {
         Err(DataError::UnexpectedAttribute(self.expecting(), "binary data".into()).into())
     }
 
     /// Loads binary value on buffered reader.
     ///
     /// This method should return error when the given reader returned error.
-    fn load_binary_buffered(self, reader: impl io::BufRead, len: u64) -> Result<Self::Output> {
-        self.load_binary(reader, len)
+    async fn load_binary_buffered(self, reader: impl AsyncBufRead + Send + 'async_trait + Unpin, len: u64) -> Result<Self::Output> {
+        self.load_binary(reader, len).await
     }
 
     /// Loads string value.
     ///
     /// This method should return error when the given reader returned error.
-    fn load_string(self, _: impl io::Read, _len: u64) -> Result<Self::Output> {
+    async fn load_string(self, _: impl AsyncRead + Send + 'async_trait + Unpin, _len: u64) -> Result<Self::Output> {
         Err(DataError::UnexpectedAttribute(self.expecting(), "string data".into()).into())
     }
 
     /// Loads string value on buffered reader.
     ///
     /// This method should return error when the given reader returned error.
-    fn load_string_buffered(self, reader: impl io::BufRead, len: u64) -> Result<Self::Output> {
-        self.load_string(reader, len)
+    async fn load_string_buffered(self, reader: impl AsyncBufRead + Send + 'async_trait + Unpin, len: u64) -> Result<Self::Output> {
+        self.load_string(reader, len).await
     }
 }

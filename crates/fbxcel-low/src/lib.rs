@@ -4,6 +4,7 @@
 #[cfg_attr(feature = "docsrs", doc(cfg(feature = "writer")))]
 pub(crate) use self::fbx_header::MAGIC;
 pub use self::{
+    error::LowError,
     fbx_header::{FbxHeader, HeaderError},
     version::FbxVersion,
 };

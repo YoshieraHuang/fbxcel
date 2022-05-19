@@ -1,8 +1,8 @@
 //! Single type loader.
 
-use std::io;
-
 use crate::pull_parser::{v7400::LoadAttribute, Result};
+use async_trait::async_trait;
+use futures_lite::{Stream, StreamExt, AsyncRead, AsyncReadExt};
 
 /// Loader for primitive types.
 ///
@@ -13,6 +13,7 @@ pub struct PrimitiveLoader<T>(std::marker::PhantomData<T>);
 /// Generates `LoadAttribute` implementations for `PrimitiveLoader<T>`.
 macro_rules! impl_load_attribute_for_primitives {
     ($ty:ty, $method_name:ident, $expecting_type:expr) => {
+        #[async_trait]
         impl LoadAttribute for PrimitiveLoader<$ty> {
             type Output = $ty;
 
@@ -20,7 +21,7 @@ macro_rules! impl_load_attribute_for_primitives {
                 $expecting_type.into()
             }
 
-            fn $method_name(self, v: $ty) -> Result<Self::Output> {
+            async fn $method_name(self, v: $ty) -> Result<Self::Output> {
                 Ok(v)
             }
         }
@@ -43,6 +44,7 @@ pub struct ArrayLoader<T>(std::marker::PhantomData<T>);
 /// Generates `LoadAttribute` implementations for `PrimitiveLoader<T>`.
 macro_rules! impl_load_attribute_for_arrays {
     ($ty:ty, $method_name:ident, $expecting_type:expr) => {
+        #[async_trait]
         impl LoadAttribute for ArrayLoader<Vec<$ty>> {
             type Output = Vec<$ty>;
 
@@ -50,12 +52,12 @@ macro_rules! impl_load_attribute_for_arrays {
                 $expecting_type.into()
             }
 
-            fn $method_name(
+            async fn $method_name(
                 self,
-                iter: impl Iterator<Item = Result<$ty>>,
+                iter: impl Stream<Item = Result<$ty>> + Send + 'async_trait,
                 _: usize,
             ) -> Result<Self::Output> {
-                iter.collect::<Result<_>>()
+                Ok(iter.try_collect().await?)
             }
         }
     };
@@ -71,6 +73,7 @@ impl_load_attribute_for_arrays!(f64, load_seq_f64, "f64 array");
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BinaryLoader;
 
+#[async_trait]
 impl LoadAttribute for BinaryLoader {
     type Output = Vec<u8>;
 
@@ -78,9 +81,9 @@ impl LoadAttribute for BinaryLoader {
         "binary".into()
     }
 
-    fn load_binary(self, mut reader: impl io::Read, len: u64) -> Result<Self::Output> {
+    async fn load_binary(self, mut reader: impl AsyncRead + Send + 'async_trait + Unpin, len: u64) -> Result<Self::Output> {
         let mut buf = Vec::with_capacity(len as usize);
-        reader.read_to_end(&mut buf)?;
+        reader.read_to_end(&mut buf).await?;
         Ok(buf)
     }
 }
@@ -89,6 +92,7 @@ impl LoadAttribute for BinaryLoader {
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StringLoader;
 
+#[async_trait]
 impl LoadAttribute for StringLoader {
     type Output = String;
 
@@ -96,9 +100,9 @@ impl LoadAttribute for StringLoader {
         "string".into()
     }
 
-    fn load_string(self, mut reader: impl io::Read, len: u64) -> Result<Self::Output> {
+    async fn load_string(self, mut reader: impl AsyncRead + Send + 'async_trait + Unpin, len: u64) -> Result<Self::Output> {
         let mut buf = String::with_capacity(len as usize);
-        reader.read_to_string(&mut buf)?;
+        reader.read_to_string(&mut buf).await?;
         Ok(buf)
     }
 }

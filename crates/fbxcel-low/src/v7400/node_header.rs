@@ -40,14 +40,8 @@ impl NodeHeader {
     }
 }
 
-/// [`NodeHeader`] after version 7500
-pub struct NodeHeaderAfter7500(pub NodeHeader);
-
-/// [`NodeHeader`] before version 7500
-pub struct NodeHeaderBefore7500(pub NodeHeader);
-
 #[async_trait]
-impl<R> FromAsyncReader<R> for NodeHeaderBefore7500
+impl<R> FromAsyncReader<R> for NodeHeader
 where
     R: AsyncRead + Unpin + Send,
 {
@@ -64,28 +58,6 @@ where
             bytelen_attributes,
             bytelen_name,
         };
-        Ok(Self(inner))
-    }
-}
-
-#[async_trait]
-impl<R> FromAsyncReader<R> for NodeHeaderAfter7500
-where
-    R: AsyncRead + Unpin + Send,
-{
-    type Error = Error;
-
-    async fn from_async_reader(reader: &mut R) -> Result<Self> {
-        let end_offset = u64::from_async_reader(reader).await?;
-        let num_attributes = u64::from_async_reader(reader).await?;
-        let bytelen_attributes = u64::from_async_reader(reader).await?;
-        let bytelen_name = u8::from_async_reader(reader).await?;
-        let inner = NodeHeader {
-            end_offset,
-            num_attributes,
-            bytelen_attributes,
-            bytelen_name,
-        };
-        Ok(Self(inner))
+        Ok(inner)
     }
 }

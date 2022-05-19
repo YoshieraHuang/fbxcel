@@ -85,13 +85,11 @@
 pub use self::{
     error::{Error, Result, Warning},
     position::SyntacticPosition,
-    reader::ParserSource,
     version::ParserVersion,
 };
 
 pub mod any;
 pub mod error;
 mod position;
-pub mod reader;
 pub mod v7400;
 mod version;

@@ -1,46 +1,46 @@
 //! Parser for FBX 7.4 or later.
+use async_position_reader::{AsyncPositionRead, SeekableReader, SimpleReader};
+use byte_order_reader::FromAsyncReader;
+use fbxcel_low::{
+    v7400::{FbxFooter, NodeHeader},
+    FbxHeader, FbxVersion,
+};
+use futures_lite::{AsyncRead, AsyncReadExt, AsyncSeek};
 
-use std::{fmt, io};
-
-use crate::{
-    low::{
-        v7400::{FbxFooter, NodeHeader},
-        FbxHeader, FbxVersion,
-    },
-    pull_parser::{
-        error::{DataError, OperationError},
-        reader::{PlainSource, SeekableSource},
-        v7400::{Event, FromParser, StartNode},
-        Error, ParserSource, ParserVersion, Result, SyntacticPosition, Warning,
-    },
+use crate::pull_parser::{
+    error::{DataError, OperationError},
+    v7400::{Event, StartNode},
+    Error, ParserVersion, Result, SyntacticPosition, Warning,
 };
 
+use super::read::FromAsyncParser;
+
 /// Warning handler type.
-type WarningHandler = Box<dyn FnMut(Warning, &SyntacticPosition) -> Result<()>>;
+type WarningHandler = Box<dyn FnMut(Warning, &SyntacticPosition) -> Result<()> + Send>;
 
 /// Creates a new [`Parser`] from the given reader.
 ///
 /// Returns an error if the given FBX version in unsupported.
-pub fn from_reader<R>(header: FbxHeader, reader: R) -> Result<Parser<PlainSource<R>>>
+pub fn from_reader<R>(header: FbxHeader, reader: R) -> Result<Parser<SimpleReader<R>>>
 where
-    R: io::Read,
+    R: AsyncRead + Unpin + Send,
 {
     Parser::create(
         header.version(),
-        PlainSource::with_offset(reader, header.len()),
+        SimpleReader::with_offset(reader, header.len()),
     )
 }
 
 /// Creates a new [`Parser`] from the given seekable reader.
 ///
 /// Returns an error if the given FBX version in unsupported.
-pub fn from_seekable_reader<R>(header: FbxHeader, reader: R) -> Result<Parser<SeekableSource<R>>>
+pub fn from_seekable_reader<R>(header: FbxHeader, reader: R) -> Result<Parser<SeekableReader<R>>>
 where
-    R: io::Read + io::Seek,
+    R: AsyncRead + AsyncSeek + Unpin + Send,
 {
     Parser::create(
         header.version(),
-        SeekableSource::with_offset(reader, header.len()),
+        SeekableReader::with_offset(reader, header.len()),
     )
 }
 
@@ -54,7 +54,7 @@ pub struct Parser<R> {
     warning_handler: Option<WarningHandler>,
 }
 
-impl<R: ParserSource> Parser<R> {
+impl<R> Parser<R> {
     /// Parser version.
     pub const PARSER_VERSION: ParserVersion = ParserVersion::V7400;
 
@@ -106,7 +106,7 @@ impl<R: ParserSource> Parser<R> {
     /// [syntactic position]: `SyntacticPosition`
     pub fn set_warning_handler<F>(&mut self, warning_handler: F)
     where
-        F: 'static + FnMut(Warning, &SyntacticPosition) -> Result<()>,
+        F: 'static + FnMut(Warning, &SyntacticPosition) -> Result<()> + Send,
     {
         self.warning_handler = Some(Box::new(warning_handler));
     }
@@ -162,8 +162,11 @@ impl<R: ParserSource> Parser<R> {
     }
 
     /// Reads the given type from the underlying reader.
-    pub(crate) fn parse<T: FromParser>(&mut self) -> Result<T> {
-        T::read_from_parser(self)
+    pub(crate) async fn parse<T: FromAsyncParser<R>>(&mut self) -> Result<T>
+    where
+        R: AsyncPositionRead + Unpin + Send,
+    {
+        T::from_async_parser(self).await
     }
 
     /// Passes the given warning to the warning handler.
@@ -183,14 +186,17 @@ impl<R: ParserSource> Parser<R> {
     /// already failed and returned error.
     /// If you call `next_event()` with failed parser, error created from
     /// [`OperationError::AlreadyAborted`] will be returned.
-    pub fn next_event(&mut self) -> Result<Event<'_, R>> {
+    pub async fn next_event(&mut self) -> Result<Event<'_, R>>
+    where
+        R: AsyncPositionRead + Unpin + Send,
+    {
         let previous_depth = self.current_depth();
 
         // Precondition: Health should be `Health::Running`.
         self.ensure_continuable()?;
 
         // Update health.
-        let event_kind = match self.next_event_impl() {
+        let event_kind = match self.next_event_impl().await {
             Ok(v) => v,
             Err(e) => {
                 let err_pos = self.position();
@@ -246,7 +252,7 @@ impl<R: ParserSource> Parser<R> {
             EventKind::StartNode => Event::StartNode(StartNode::new(self)),
             EventKind::EndNode => Event::EndNode,
             EventKind::EndFbx => {
-                let footer_res = FbxFooter::read_from_parser(self).map(Box::new);
+                let footer_res = self.parse::<FbxFooter>().await.map(Box::new);
                 Event::EndFbx(footer_res)
             }
         })
@@ -254,12 +260,15 @@ impl<R: ParserSource> Parser<R> {
 
     /// Reads the next node header and changes the parser state (except for
     /// parser health and the last event kind).
-    fn next_event_impl(&mut self) -> Result<EventKind> {
+    async fn next_event_impl(&mut self) -> Result<EventKind>
+    where
+        R: AsyncPositionRead + Unpin + Send,
+    {
         assert_eq!(self.state.health(), &Health::Running);
         assert_ne!(self.state.last_event_kind(), Some(EventKind::EndFbx));
 
         // Skip unread attribute of previous node, if exists.
-        self.skip_unread_attributes()?;
+        self.skip_unread_attributes().await?;
 
         let event_start_offset = self.reader().position();
 
@@ -298,7 +307,7 @@ impl<R: ParserSource> Parser<R> {
         }
 
         // Read node header.
-        let node_header = NodeHeader::read_from_parser(self)?;
+        let node_header = NodeHeader::from_async_reader(self.reader()).await?;
 
         let header_end_offset = self.reader().position();
 
@@ -345,7 +354,7 @@ impl<R: ParserSource> Parser<R> {
         // Read the node name.
         let name = {
             let mut vec = vec![0; node_header.bytelen_name as usize];
-            self.reader.read_exact(&mut vec[..])?;
+            self.reader.read_exact(&mut vec[..]).await?;
             String::from_utf8(vec).map_err(DataError::InvalidNodeNameEncoding)?
         };
         let current_offset = self.reader().position();
@@ -370,14 +379,17 @@ impl<R: ParserSource> Parser<R> {
     /// Skips unread attribute of the current node, if remains.
     ///
     /// If there are no unread attributes, this method simply do nothing.
-    fn skip_unread_attributes(&mut self) -> Result<()> {
+    async fn skip_unread_attributes(&mut self) -> Result<()>
+    where
+        R: AsyncPositionRead + Unpin + Send,
+    {
         let attributes_end_offset = match self.state.current_node() {
             Some(v) => v.attributes_end_offset,
             None => return Ok(()),
         };
         if attributes_end_offset > self.reader().position() {
             // Skip if attributes remains (partially or entirely) unread.
-            self.reader().skip_to(attributes_end_offset)?;
+            self.reader().skip_to(attributes_end_offset).await?;
         }
 
         Ok(())
@@ -441,7 +453,10 @@ impl<R: ParserSource> Parser<R> {
     /// ```
     ///
     /// [`EndNode`]: `Event::EndNode`
-    pub fn skip_current_node(&mut self) -> Result<()> {
+    pub async fn skip_current_node(&mut self) -> Result<()>
+    where
+        R: AsyncPositionRead + Unpin + Send,
+    {
         let end_pos = self
             .state
             .started_nodes
@@ -449,14 +464,17 @@ impl<R: ParserSource> Parser<R> {
             .expect("Attempt to skip implicit top-level node")
             .node_end_offset;
         self.state.last_event_kind = Some(EventKind::EndNode);
-        self.reader.skip_to(end_pos)?;
+        self.reader.skip_to(end_pos).await?;
 
         Ok(())
     }
     /// Returns the syntactic position of the current node.
     ///
     /// Note that this allocates memory.
-    pub fn position(&self) -> SyntacticPosition {
+    pub fn position(&self) -> SyntacticPosition
+    where
+        R: AsyncPositionRead,
+    {
         let byte_pos = self.reader.position();
         if self.state.current_node().is_none() {
             // Reading implicit root node.
@@ -526,6 +544,8 @@ impl<R: ParserSource> Parser<R> {
         self.state.last_event_kind.is_some()
     }
 }
+
+use std::fmt;
 
 impl<R: fmt::Debug> fmt::Debug for Parser<R> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

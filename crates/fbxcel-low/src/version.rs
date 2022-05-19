@@ -12,14 +12,14 @@ impl FbxVersion {
     pub const V7_5: Self = FbxVersion(7500);
 
     /// Creates a new `FbxVersion`.
-    pub(crate) fn new(version: u32) -> Self {
+    pub fn new(version: u32) -> Self {
         FbxVersion(version)
     }
 
     /// Returns the raw value.
     ///
     /// For example, `7400` for FBX 7.4.
-    pub(crate) fn raw(self) -> u32 {
+    pub fn raw(self) -> u32 {
         self.0
     }
 

@@ -37,12 +37,15 @@ writer = []
 [dependencies]
 byteorder = "1"
 indextree = { version = "4", optional = true }
-libflate = "1.0.1"
+async-compression = { version = "0.3", features = [ "zlib", "futures-io" ] }
 log = "0.4.4"
 string-interner = { version = "0.13.0", optional = true, default-features = false, features = ["backends", "inline-more", "std"] }
 thiserror = "1"
 futures-lite = "1.12"
+futures-core = "0.3"
 byte-order-reader = { path = "./crates/byte-order-reader" }
+fbxcel-low = { path = "./crates/fbxcel-low" }
+async-position-reader = { path = "./crates/async-position-reader" }
 
 async-trait = "0.1.53"
 

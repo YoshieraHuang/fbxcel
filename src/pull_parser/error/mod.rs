@@ -2,7 +2,9 @@
 //!
 //! Types in this module will be used among multiple versions of parsers.
 
-use std::{error, fmt, io};
+use std::{error, io};
+use fbxcel_low::LowError;
+use thiserror::Error;
 
 use crate::pull_parser::SyntacticPosition;
 
@@ -20,67 +22,52 @@ mod warning;
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// Parsing error.
-#[derive(Debug)]
-pub struct Error {
-    /// The real error.
-    repr: Box<Repr>,
-}
+#[derive(Debug, Error)]
+pub struct Error(Box<Repr>);
 
 impl Error {
     /// Returns the error kind.
     pub fn kind(&self) -> ErrorKind {
-        self.repr.error.kind()
+        self.0.error.kind()
     }
 
     /// Returns a reference to the inner error container.
     pub fn get_ref(&self) -> &ErrorContainer {
-        &self.repr.error
+        &self.0.error
     }
 
     /// Returns a reference to the inner error if the type matches.
     pub fn downcast_ref<T: 'static + error::Error>(&self) -> Option<&T> {
-        self.repr.error.as_error().downcast_ref::<T>()
+        self.0.error.as_error().downcast_ref::<T>()
     }
 
     /// Returns the syntactic position if available.
     pub fn position(&self) -> Option<&SyntacticPosition> {
-        self.repr.position.as_ref()
+        self.0.position.as_ref()
     }
 
     /// Creates a new `Error` with the given syntactic position info.
     pub(crate) fn with_position(error: ErrorContainer, position: SyntacticPosition) -> Self {
-        Self {
-            repr: Box::new(Repr::with_position(error, position)),
-        }
+        Self(Box::new(Repr::with_position(error, position)))
     }
 
     /// Sets the syntactic position and returns the new error.
     pub(crate) fn and_position(mut self, position: SyntacticPosition) -> Self {
-        self.repr.position = Some(position);
+        self.0.position = Some(position);
         self
     }
 }
 
+use std::fmt;
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.repr.error.fmt(f)
+        self.0.error.fmt(f)
     }
 }
 
-impl error::Error for Error {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
-        self.repr.error.source()
-    }
-}
-
-impl<T> From<T> for Error
-where
-    T: Into<ErrorContainer>,
-{
-    fn from(e: T) -> Self {
-        Error {
-            repr: Box::new(Repr::new(e.into())),
-        }
+impl<T: Into<ErrorContainer>> From<T> for Error {
+    fn from(t: T) -> Self {
+        Error(Box::new(Repr::new(t.into())))
     }
 }
 
@@ -142,16 +129,33 @@ pub enum ErrorKind {
 }
 
 /// Parsing error container.
-#[derive(Debug)]
+#[allow(missing_docs)]
+#[derive(Debug, Error)]
 pub enum ErrorContainer {
-    /// Invalid data.
-    Data(DataError),
-    /// I/O error.
-    Io(io::Error),
-    /// Invalid operation.
-    Operation(OperationError),
-    /// Critical warning.
-    Warning(Warning),
+    #[error("Data Error: {0}")]
+    Data(
+        #[from]
+        #[source]
+        DataError,
+    ),
+    #[error("Data Error: {0}")]
+    Io(
+        #[from]
+        #[source]
+        io::Error,
+    ),
+    #[error("Invalid operation: {0}")]
+    Operation(
+        #[from]
+        #[source]
+        OperationError,
+    ),
+    #[error("Critical warning: {0}")]
+    Warning(
+        #[from]
+        #[source]
+        Warning,
+    ),
 }
 
 impl ErrorContainer {
@@ -176,43 +180,26 @@ impl ErrorContainer {
     }
 }
 
-impl error::Error for ErrorContainer {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
-        Some(self.as_error())
-    }
-}
+// impl<E: Into<DataError>> From<E> for ErrorContainer {
+//     fn from(e: E) -> Self {
+//         ErrorContainer::Data(e.into())
+//     }
+// }
 
-impl fmt::Display for ErrorContainer {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ErrorContainer::Data(e) => write!(f, "Data error: {}", e),
-            ErrorContainer::Io(e) => write!(f, "I/O error: {}", e),
-            ErrorContainer::Operation(e) => write!(f, "Invalid operation: {}", e),
-            ErrorContainer::Warning(e) => write!(f, "Warning considered critical: {}", e),
-        }
-    }
-}
+// impl<E: Into<OperationError>> From<E> for ErrorContainer {
+//     fn from(e: E) -> Self {
+//         ErrorContainer::Operation(e.into())
+//     }
+// }
 
-impl From<io::Error> for ErrorContainer {
-    fn from(e: io::Error) -> Self {
-        ErrorContainer::Io(e)
-    }
-}
+// impl From<Warning> for ErrorContainer {
+//     fn from(e: Warning) -> Self {
+//         ErrorContainer::Warning(e)
+//     }
+// }
 
-impl From<DataError> for ErrorContainer {
-    fn from(e: DataError) -> Self {
-        ErrorContainer::Data(e)
-    }
-}
-
-impl From<OperationError> for ErrorContainer {
-    fn from(e: OperationError) -> Self {
-        ErrorContainer::Operation(e)
-    }
-}
-
-impl From<Warning> for ErrorContainer {
-    fn from(e: Warning) -> Self {
-        ErrorContainer::Warning(e)
+impl From<LowError> for ErrorContainer {
+    fn from(e: LowError) -> Self {
+        ErrorContainer::Data(e.into())
     }
 }

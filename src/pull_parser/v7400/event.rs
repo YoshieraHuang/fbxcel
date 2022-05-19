@@ -1,11 +1,11 @@
 //! Parser event.
 
-use crate::{
-    low::v7400::FbxFooter,
-    pull_parser::{
-        v7400::{Attributes, Parser},
-        ParserSource, Result,
-    },
+use async_position_reader::AsyncPositionRead;
+use fbxcel_low::v7400::FbxFooter;
+
+use crate::pull_parser::{
+    v7400::{Attributes, Parser},
+    Result,
 };
 
 /// Parser event.
@@ -29,7 +29,7 @@ pub struct StartNode<'a, R> {
     parser: &'a mut Parser<R>,
 }
 
-impl<'a, R: 'a + ParserSource> StartNode<'a, R> {
+impl<'a, R: 'a + AsyncPositionRead> StartNode<'a, R> {
     /// Creates a new `StartNode`.
     pub(crate) fn new(parser: &'a mut Parser<R>) -> Self {
         Self { parser }

@@ -1,15 +1,10 @@
 //! Types and functions for all supported versions.
 
-use std::io::{Read, Seek};
+use async_position_reader::{AsyncPositionRead, SeekableReader, SimpleReader};
+use fbxcel_low::{FbxHeader, FbxVersion};
+use futures_lite::{AsyncRead, AsyncSeek};
 
-use crate::{
-    low::{FbxHeader, FbxVersion},
-    pull_parser::{
-        self,
-        reader::{PlainSource, SeekableSource},
-        ParserSource, ParserVersion,
-    },
-};
+use crate::pull_parser::{self, ParserVersion};
 
 pub use self::error::{Error, Result};
 
@@ -22,7 +17,7 @@ pub enum AnyParser<R> {
     V7400(super::v7400::Parser<R>),
 }
 
-impl<R: ParserSource> AnyParser<R> {
+impl<R: AsyncPositionRead> AnyParser<R> {
     /// Returns the parser version.
     pub fn parser_version(&self) -> ParserVersion {
         match self {
@@ -40,8 +35,7 @@ impl<R: ParserSource> AnyParser<R> {
 
 /// Returns the parser version for the FBX data.
 fn parser_version(header: FbxHeader) -> Result<ParserVersion> {
-    header
-        .parser_version()
+    ParserVersion::from_fbx_version(header.version())
         .ok_or_else(|| Error::UnsupportedVersion(header.version()))
 }
 
@@ -50,7 +44,9 @@ fn parser_version(header: FbxHeader) -> Result<ParserVersion> {
 /// This works for seekable readers (which implement [`std::io::Seek`]), but
 /// [`from_seekable_reader`] should be used for them, because it is more
 /// efficent.
-pub async fn from_reader<R: Read>(mut reader: R) -> Result<AnyParser<PlainSource<R>>> {
+pub async fn from_reader<R: AsyncRead + Unpin + Send>(
+    mut reader: R,
+) -> Result<AnyParser<SimpleReader<R>>> {
     let header = FbxHeader::load(&mut reader).await?;
     match parser_version(header)? {
         ParserVersion::V7400 => {
@@ -67,8 +63,10 @@ pub async fn from_reader<R: Read>(mut reader: R) -> Result<AnyParser<PlainSource
 }
 
 /// Loads a tree from the given seekable reader.
-pub fn from_seekable_reader<R: Read + Seek>(mut reader: R) -> Result<AnyParser<SeekableSource<R>>> {
-    let header = FbxHeader::load(&mut reader)?;
+pub async fn from_seekable_reader<R: AsyncRead + AsyncSeek + Unpin + Send>(
+    mut reader: R,
+) -> Result<AnyParser<SeekableReader<R>>> {
+    let header = FbxHeader::load(&mut reader).await?;
     match parser_version(header)? {
         ParserVersion::V7400 => {
             let parser =

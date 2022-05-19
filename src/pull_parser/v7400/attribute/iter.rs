@@ -1,11 +1,18 @@
 //! Node attribute iterators.
 
-use std::io;
-use std::iter;
+use std::pin::Pin;
+use std::task::Context;
+use std::task::Poll;
+
+use async_position_reader::AsyncPositionRead;
+use futures_core::Stream;
+use futures_lite::ready;
+use futures_lite::AsyncBufRead;
+use futures_lite::FutureExt;
 
 use crate::pull_parser::{
     v7400::attribute::{loader::LoadAttribute, Attributes},
-    ParserSource, Result,
+    Result,
 };
 
 /// Creates size hint from the given attributes and loaders.
@@ -14,7 +21,7 @@ fn make_size_hint_for_attrs<R, V>(
     loaders: &impl Iterator<Item = V>,
 ) -> (usize, Option<usize>)
 where
-    R: ParserSource,
+    R: AsyncPositionRead,
     V: LoadAttribute,
 {
     let (loaders_min, loaders_max) = loaders.size_hint();
@@ -25,44 +32,32 @@ where
     (min, Some(max))
 }
 
-/// Loads the next attrbute.
-fn load_next<R, V>(
-    attributes: &mut Attributes<'_, R>,
-    loaders: &mut impl Iterator<Item = V>,
-) -> Option<Result<V::Output>>
-where
-    R: ParserSource,
-    V: LoadAttribute,
-{
-    let loader = loaders.next()?;
-    attributes.load_next(loader).transpose()
-}
-
-/// Loads the next attrbute with buffered I/O.
-fn load_next_buffered<R, V>(
-    attributes: &mut Attributes<'_, R>,
-    loaders: &mut impl Iterator<Item = V>,
-) -> Option<Result<V::Output>>
-where
-    R: ParserSource + io::BufRead,
-    V: LoadAttribute,
-{
-    let loader = loaders.next()?;
-    attributes.load_next(loader).transpose()
-}
+// /// Loads the next attrbute.
+// async fn load_next<R, V>(
+//     attributes: &mut Attributes<'_, R>,
+//     loaders: &mut impl Stream<Item = V>,
+//     cx: &mut Context,
+// ) -> Option<Result<V::Output>>
+// where
+//     R: AsyncPositionRead + Unpin + Send,
+//     V: LoadAttribute,
+// {
+//     let loader = loaders.next().await?;
+//     attributes.load_next(loader).await.transpose()
+// }
 
 /// Node attributes iterator.
 #[derive(Debug)]
-pub struct BorrowedIter<'a, 'r, R, I> {
+pub struct BorrowedStream<'a, 'r, R, I> {
     /// Attributes.
     attributes: &'a mut Attributes<'r, R>,
     /// Loaders.
     loaders: I,
 }
 
-impl<'a, 'r, R, I, V> BorrowedIter<'a, 'r, R, I>
+impl<'a, 'r, R, I, V> BorrowedStream<'a, 'r, R, I>
 where
-    R: ParserSource,
+    R: AsyncPositionRead,
     I: Iterator<Item = V>,
     V: LoadAttribute,
 {
@@ -75,16 +70,22 @@ where
     }
 }
 
-impl<'a, 'r, R, I, V> Iterator for BorrowedIter<'a, 'r, R, I>
+impl<'a, 'r, R, I, V> Stream for BorrowedStream<'a, 'r, R, I>
 where
-    R: ParserSource,
-    I: Iterator<Item = V>,
-    V: LoadAttribute,
+    R: AsyncPositionRead + AsyncBufRead + Unpin + Send,
+    I: Iterator<Item = V> + Unpin,
+    V: LoadAttribute + Send,
 {
     type Item = Result<V::Output>;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        load_next(self.attributes, &mut self.loaders)
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+        let this = self.get_mut();
+        let loader = this.loaders.next();
+        Poll::Ready(if let Some(loader) = loader {
+            ready!(this.attributes.load_next(loader).boxed().poll(cx)).transpose()
+        } else {
+            None
+        })
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
@@ -92,26 +93,26 @@ where
     }
 }
 
-impl<'a, 'r, R, I, V> iter::FusedIterator for BorrowedIter<'a, 'r, R, I>
-where
-    R: ParserSource,
-    I: Iterator<Item = V>,
-    V: LoadAttribute,
-{
-}
+// impl<'a, 'r, R, I, V> FusedStream for BorrowedStream<'a, 'r, R, I>
+// where
+//     R: AsyncPositionRead + Unpin + Send,
+//     I: Iterator<Item = V>,
+//     V: LoadAttribute,
+// {
+// }
 
 /// Node attributes iterator with buffered I/O.
 #[derive(Debug)]
-pub struct BorrowedIterBuffered<'a, 'r, R, I> {
+pub struct BorrowedStreamBuffered<'a, 'r, R, I> {
     /// Attributes.
     attributes: &'a mut Attributes<'r, R>,
     /// Loaders.
     loaders: I,
 }
 
-impl<'a, 'r, R, I, V> BorrowedIterBuffered<'a, 'r, R, I>
+impl<'a, 'r, R, I, V> BorrowedStreamBuffered<'a, 'r, R, I>
 where
-    R: ParserSource,
+    R: AsyncPositionRead,
     I: Iterator<Item = V>,
     V: LoadAttribute,
 {
@@ -124,16 +125,22 @@ where
     }
 }
 
-impl<'a, 'r, R, I, V> Iterator for BorrowedIterBuffered<'a, 'r, R, I>
+impl<'a, 'r, R, I, V> Stream for BorrowedStreamBuffered<'a, 'r, R, I>
 where
-    R: ParserSource + io::BufRead,
-    I: Iterator<Item = V>,
-    V: LoadAttribute,
+    R: AsyncPositionRead + AsyncBufRead + Unpin + Send,
+    I: Iterator<Item = V> + Unpin,
+    V: LoadAttribute + Send,
 {
     type Item = Result<V::Output>;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        load_next_buffered(self.attributes, &mut self.loaders)
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+        let this = self.get_mut();
+        let loader = this.loaders.next();
+        Poll::Ready(if let Some(loader) = loader {
+            ready!(this.attributes.load_next(loader).boxed().poll(cx)).transpose()
+        } else {
+            None
+        })
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
@@ -141,13 +148,13 @@ where
     }
 }
 
-impl<'a, 'r, R, I, V> iter::FusedIterator for BorrowedIterBuffered<'a, 'r, R, I>
-where
-    R: ParserSource + io::BufRead,
-    I: Iterator<Item = V>,
-    V: LoadAttribute,
-{
-}
+// impl<'a, 'r, R, I, V> FusedStream for BorrowedStreamBuffered<'a, 'r, R, I>
+// where
+//     R: AsyncPositionRead + io::BufRead,
+//     I: Iterator<Item = V>,
+//     V: LoadAttribute,
+// {
+// }
 
 /// Node attributes iterator.
 #[derive(Debug)]
@@ -160,7 +167,7 @@ pub struct OwnedIter<'r, R, I> {
 
 impl<'r, R, I, V> OwnedIter<'r, R, I>
 where
-    R: ParserSource,
+    R: AsyncPositionRead,
     I: Iterator<Item = V>,
     V: LoadAttribute,
 {
@@ -173,16 +180,22 @@ where
     }
 }
 
-impl<'r, R, I, V> Iterator for OwnedIter<'r, R, I>
+impl<'r, R, I, V> Stream for OwnedIter<'r, R, I>
 where
-    R: ParserSource,
-    I: Iterator<Item = V>,
-    V: LoadAttribute,
+    R: AsyncPositionRead + AsyncBufRead + Unpin + Send,
+    I: Iterator<Item = V> + Unpin,
+    V: LoadAttribute + Send,
 {
     type Item = Result<V::Output>;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        load_next(&mut self.attributes, &mut self.loaders)
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+        let this = self.get_mut();
+        let loader = this.loaders.next();
+        Poll::Ready(if let Some(loader) = loader {
+            ready!(this.attributes.load_next(loader).boxed().poll(cx)).transpose()
+        } else {
+            None
+        })
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
@@ -190,13 +203,13 @@ where
     }
 }
 
-impl<'r, R, I, V> iter::FusedIterator for OwnedIter<'r, R, I>
-where
-    R: ParserSource,
-    I: Iterator<Item = V>,
-    V: LoadAttribute,
-{
-}
+// impl<'r, R, I, V> iter::FusedIterator for OwnedIter<'r, R, I>
+// where
+//     R: AsyncPositionRead,
+//     I: Iterator<Item = V>,
+//     V: LoadAttribute,
+// {
+// }
 
 /// Node attributes iterator with buffered I/O.
 #[derive(Debug)]
@@ -209,7 +222,7 @@ pub struct OwnedIterBuffered<'r, R, I> {
 
 impl<'r, R, I, V> OwnedIterBuffered<'r, R, I>
 where
-    R: ParserSource,
+    R: AsyncPositionRead,
     I: Iterator<Item = V>,
     V: LoadAttribute,
 {
@@ -222,16 +235,22 @@ where
     }
 }
 
-impl<'r, R, I, V> Iterator for OwnedIterBuffered<'r, R, I>
+impl<'r, R, I, V> Stream for OwnedIterBuffered<'r, R, I>
 where
-    R: ParserSource + io::BufRead,
-    I: Iterator<Item = V>,
-    V: LoadAttribute,
+    R: AsyncPositionRead + AsyncBufRead + Unpin + Send,
+    I: Iterator<Item = V> + Unpin,
+    V: LoadAttribute + Send,
 {
     type Item = Result<V::Output>;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        load_next_buffered(&mut self.attributes, &mut self.loaders)
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+        let this = self.get_mut();
+        let loader = this.loaders.next();
+        Poll::Ready(if let Some(loader) = loader {
+            ready!(this.attributes.load_next(loader).boxed().poll(cx)).transpose()
+        } else {
+            None
+        })
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
@@ -239,10 +258,10 @@ where
     }
 }
 
-impl<'r, R, I, V> iter::FusedIterator for OwnedIterBuffered<'r, R, I>
-where
-    R: ParserSource + io::BufRead,
-    I: Iterator<Item = V>,
-    V: LoadAttribute,
-{
-}
+// impl<'r, R, I, V> FusedStream for OwnedIterBuffered<'r, R, I>
+// where
+//     R: AsyncPositionRead + AsyncBufRead + Unpin + Send,
+//     I: FusedIterator<Item = V>,
+//     V: LoadAttribute,
+// {
+// }
