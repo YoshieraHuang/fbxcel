@@ -1,7 +1,7 @@
 //! Tests for writer, tree, and parser.
 #![cfg(all(feature = "tree", feature = "writer"))]
 
-use std::{cell::RefCell, io::Cursor, rc::Rc};
+use std::sync::{Arc, Mutex};
 
 use fbxcel::{
     low::FbxVersion,
@@ -10,11 +10,12 @@ use fbxcel::{
     tree_v7400,
     writer::v7400::binary::Writer,
 };
+use futures_lite::io::Cursor;
 
 /// Construct tree, export it to binary, parse it and construct tree, and
 /// compare them.
-#[test]
-fn tree_write_parse_idempotence_v7500() -> Result<(), Box<dyn std::error::Error>> {
+#[async_std::test]
+async fn tree_write_parse_idempotence_v7500() -> Result<(), Box<dyn std::error::Error>> {
     // Construct tree.
     let tree1 = tree_v7400! {
         Node0: {
@@ -27,27 +28,31 @@ fn tree_write_parse_idempotence_v7500() -> Result<(), Box<dyn std::error::Error>
         },
     };
 
-    let mut writer = Writer::new(Cursor::new(Vec::new()), FbxVersion::V7_5)?;
-    writer.write_tree(&tree1)?;
-    let bin = writer.finalize_and_flush(&Default::default())?.into_inner();
+    let mut writer = Writer::new(Cursor::new(Vec::new()), FbxVersion::V7_5).await?;
+    writer.write_tree(&tree1).await?;
+    let bin = writer
+        .finalize_and_flush(&Default::default())
+        .await?
+        .into_inner();
 
-    let mut parser = match from_seekable_reader(Cursor::new(bin))? {
+    let mut parser = match from_seekable_reader(Cursor::new(bin)).await? {
         AnyParser::V7400(parser) => parser,
         _ => panic!("Generated data should be parsable with v7400 parser"),
     };
-    let warnings = Rc::new(RefCell::new(Vec::new()));
+    let warnings = Arc::new(Mutex::new(Vec::new()));
     parser.set_warning_handler({
         let warnings = warnings.clone();
         move |warning, _pos| {
-            warnings.borrow_mut().push(warning);
+            let mut warnings = warnings.lock().unwrap();
+            warnings.push(warning);
             Ok(())
         }
     });
     assert_eq!(parser.fbx_version(), FbxVersion::V7_5);
 
-    let (tree2, footer_res) = TreeLoader::new().load(&mut parser)?;
+    let (tree2, footer_res) = TreeLoader::new().load(&mut parser).await?;
 
-    assert_eq!(warnings.borrow().len(), 0);
+    assert_eq!(warnings.lock().unwrap().len(), 0);
     assert!(footer_res.is_ok());
 
     assert!(tree1.strict_eq(&tree2));

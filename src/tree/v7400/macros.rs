@@ -74,7 +74,7 @@ macro_rules! tree_v7400 {
     ) => {{
         {
             let _node = $tree.append_new($parent, stringify!($name));
-            $attrs.into_iter().for_each(|attr: $crate::low::v7400::AttributeValue| $tree.append_attribute(_node, attr));
+            $attrs.into_iter().for_each(|attr: fbxcel_low::v7400::AttributeValue| $tree.append_attribute(_node, attr));
             tree_v7400! { @__node, $tree, _node, $($subtree)* }
         }
         tree_v7400! { @__node, $tree, $parent, $($rest)* }

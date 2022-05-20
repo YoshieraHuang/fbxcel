@@ -1,6 +1,8 @@
 //! Node-local data.
 
-use crate::{low::v7400::AttributeValue, tree::v7400::node::NodeNameSym};
+use fbxcel_low::v7400::AttributeValue;
+
+use crate::tree::v7400::node::NodeNameSym;
 
 /// Node-local data in FBX data tree.
 ///

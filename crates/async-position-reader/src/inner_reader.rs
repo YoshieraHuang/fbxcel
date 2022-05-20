@@ -14,6 +14,7 @@ pin_project! {
     ///
     /// Panics if the position overflows.
     #[must_use = "futures do nothing unless you `.await` or poll them"]
+    #[derive(Debug)]
     pub struct InnerAsyncPositionReader<R> {
         #[pin]
         inner: R,

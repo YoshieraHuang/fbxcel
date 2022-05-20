@@ -15,3 +15,7 @@ async-trait = "0.1"
 
 [dev-dependencies]
 async-std = { version = "1.11", features = [ "attributes" ] }
+
+[features]
+default = []
+writer = []

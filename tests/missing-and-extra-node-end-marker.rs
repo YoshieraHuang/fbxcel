@@ -1,7 +1,10 @@
 //! Tests for writer, tree, and parser.
 #![cfg(all(feature = "tree", feature = "writer"))]
 
-use std::{cell::RefCell, io::Cursor, iter, rc::Rc};
+use std::{
+    iter,
+    sync::{Arc, Mutex},
+};
 
 use fbxcel::{
     low::FbxVersion,
@@ -10,6 +13,7 @@ use fbxcel::{
         error::Warning,
     },
 };
+use futures_lite::io::Cursor;
 
 use self::v7400::writer::{
     expect_fbx_end, expect_node_end, expect_node_start, CUSTOM_UNKNOWN1, MAGIC, UNKNOWN3,
@@ -18,8 +22,8 @@ use self::v7400::writer::{
 mod v7400;
 
 /// Parses a node which lacks necessary node end marker.
-#[test]
-fn missing_node_end_marker() -> Result<(), Box<dyn std::error::Error>> {
+#[async_std::test]
+async fn missing_node_end_marker() -> Result<(), Box<dyn std::error::Error>> {
     let data = {
         let raw_ver = 7400_u32;
         let mut vec = Vec::new();
@@ -99,34 +103,34 @@ fn missing_node_end_marker() -> Result<(), Box<dyn std::error::Error>> {
 
     assert_eq!(data.len() % 16, 0);
 
-    let mut parser = match from_seekable_reader(Cursor::new(data))? {
+    let mut parser = match from_seekable_reader(Cursor::new(data)).await? {
         AnyParser::V7400(parser) => parser,
         _ => panic!("Generated data should be parsable with v7400 parser"),
     };
-    let warnings = Rc::new(RefCell::new(Vec::new()));
+    let warnings = Arc::new(Mutex::new(Vec::new()));
     parser.set_warning_handler({
         let warnings = warnings.clone();
         move |warning, _pos| {
-            warnings.borrow_mut().push(warning);
+            warnings.lock().unwrap().push(warning);
             Ok(())
         }
     });
     assert_eq!(parser.fbx_version(), FbxVersion::V7_4);
 
     {
-        let attrs = expect_node_start(&mut parser, "Container")?;
+        let attrs = expect_node_start(&mut parser, "Container").await?;
         assert_eq!(attrs.total_count(), 0);
     }
     {
-        let attrs = expect_node_start(&mut parser, "InvalidNode")?;
+        let attrs = expect_node_start(&mut parser, "InvalidNode").await?;
         assert_eq!(attrs.total_count(), 0);
     }
-    expect_node_end(&mut parser)?;
-    expect_node_end(&mut parser)?;
+    expect_node_end(&mut parser).await?;
+    expect_node_end(&mut parser).await?;
 
-    let _: Box<fbxcel::low::v7400::FbxFooter> = expect_fbx_end(&mut parser)??;
+    let _: Box<fbxcel::low::v7400::FbxFooter> = expect_fbx_end(&mut parser).await??;
 
-    match &warnings.borrow()[..] {
+    match &warnings.lock().unwrap()[..] {
         [Warning::MissingNodeEndMarker] => {}
         v => panic!("Unexpected warnings: {:?}", v),
     }
@@ -135,8 +139,8 @@ fn missing_node_end_marker() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 /// Parses a node which has extra node end marker.
-#[test]
-fn extra_node_end_marker() -> Result<(), Box<dyn std::error::Error>> {
+#[async_std::test]
+async fn extra_node_end_marker() -> Result<(), Box<dyn std::error::Error>> {
     let data = {
         let raw_ver = 7400_u32;
         let mut vec = Vec::new();
@@ -220,34 +224,34 @@ fn extra_node_end_marker() -> Result<(), Box<dyn std::error::Error>> {
 
     assert_eq!(data.len() % 16, 0);
 
-    let mut parser = match from_seekable_reader(Cursor::new(data))? {
+    let mut parser = match from_seekable_reader(Cursor::new(data)).await? {
         AnyParser::V7400(parser) => parser,
         _ => panic!("Generated data should be parsable with v7400 parser"),
     };
-    let warnings = Rc::new(RefCell::new(Vec::new()));
+    let warnings = Arc::new(Mutex::new(Vec::new()));
     parser.set_warning_handler({
         let warnings = warnings.clone();
         move |warning, _pos| {
-            warnings.borrow_mut().push(warning);
+            warnings.lock().unwrap().push(warning);
             Ok(())
         }
     });
     assert_eq!(parser.fbx_version(), FbxVersion::V7_4);
 
     {
-        let attrs = expect_node_start(&mut parser, "Container")?;
+        let attrs = expect_node_start(&mut parser, "Container").await?;
         assert_eq!(attrs.total_count(), 0);
     }
     {
-        let attrs = expect_node_start(&mut parser, "InvalidNode")?;
+        let attrs = expect_node_start(&mut parser, "InvalidNode").await?;
         assert_eq!(attrs.total_count(), 1);
     }
-    expect_node_end(&mut parser)?;
-    expect_node_end(&mut parser)?;
+    expect_node_end(&mut parser).await?;
+    expect_node_end(&mut parser).await?;
 
-    let _: Box<fbxcel::low::v7400::FbxFooter> = expect_fbx_end(&mut parser)??;
+    let _: Box<fbxcel::low::v7400::FbxFooter> = expect_fbx_end(&mut parser).await??;
 
-    match &warnings.borrow()[..] {
+    match &warnings.lock().unwrap()[..] {
         [Warning::ExtraNodeEndMarker] => {}
         v => panic!("Unexpected warnings: {:?}", v),
     }

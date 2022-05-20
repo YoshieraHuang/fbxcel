@@ -1,47 +1,55 @@
-use std::{fs::File, io::BufReader, path::PathBuf};
+use std::path::PathBuf;
 
-use fbxcel::pull_parser::{
+use async_position_reader::AsyncPositionRead;
+use async_std::fs::File;
+use fbxcel_low::v7400::AttributeValue;
+use fbxcel_pull_parser::{
     self,
     any::{from_seekable_reader, AnyParser},
 };
+use futures_lite::{io::BufReader, AsyncBufRead};
 
-fn main() {
+#[async_std::main]
+async fn main() -> anyhow::Result<()> {
     env_logger::init();
 
-    let path = match std::env::args_os().nth(1) {
-        Some(v) => PathBuf::from(v),
+    match std::env::args_os().nth(1) {
         None => {
             eprintln!("Usage: dump-pull-parser-events <FBX_FILE>");
-            std::process::exit(1);
+        }
+        Some(v) => {
+            let path = PathBuf::from(v);
+            let file = File::open(path).await?;
+            let reader = BufReader::new(file);
+
+            match from_seekable_reader(reader).await? {
+                AnyParser::V7400(mut parser) => {
+                    let version = parser.fbx_version();
+                    println!("FBX version: {}.{}", version.major(), version.minor());
+                    parser.set_warning_handler(|w, pos| {
+                        eprintln!("WARNING: {} (pos={:?})", w, pos);
+                        Ok(())
+                    });
+                    dump_fbx_7400(parser).await?;
+                }
+                parser => panic!(
+                    "Unsupported by this example: fbx_version={:?}",
+                    parser.fbx_version()
+                ),
+            }
         }
     };
-    let file = File::open(path).expect("Failed to open file");
-    let reader = BufReader::new(file);
 
-    match from_seekable_reader(reader).expect("Failed to create parser") {
-        AnyParser::V7400(mut parser) => {
-            let version = parser.fbx_version();
-            println!("FBX version: {}.{}", version.major(), version.minor());
-            parser.set_warning_handler(|w, pos| {
-                eprintln!("WARNING: {} (pos={:?})", w, pos);
-                Ok(())
-            });
-            dump_fbx_7400(parser).expect("Failed to parse FBX file");
-        }
-        parser => panic!(
-            "Unsupported by this example: fbx_version={:?}",
-            parser.fbx_version()
-        ),
-    }
+    Ok(())
 }
 
 fn indent(depth: usize) {
     print!("{:depth$}", "", depth = depth * 4);
 }
 
-fn dump_fbx_7400<R: pull_parser::ParserSource>(
-    mut parser: pull_parser::v7400::Parser<R>,
-) -> pull_parser::Result<()> {
+async fn dump_fbx_7400<R: AsyncPositionRead + AsyncBufRead + Unpin + Send>(
+    mut parser: fbxcel_pull_parser::v7400::Parser<R>,
+) -> fbxcel_pull_parser::Result<()> {
     let mut depth = 0;
 
     /// Dump format of node attributes.
@@ -63,9 +71,9 @@ fn dump_fbx_7400<R: pull_parser::ParserSource>(
     };
 
     loop {
-        use self::pull_parser::v7400::*;
+        use fbxcel_pull_parser::v7400::*;
 
-        match parser.next_event()? {
+        match parser.next_event().await? {
             Event::StartNode(start) => {
                 indent(depth);
                 println!("Node start: {:?}", start.name());
@@ -73,9 +81,9 @@ fn dump_fbx_7400<R: pull_parser::ParserSource>(
 
                 let attrs = start.attributes();
                 match attrs_dump_format {
-                    AttrsDumpFormat::Type => dump_v7400_attributes_type(depth, attrs)?,
-                    AttrsDumpFormat::Length => dump_v7400_attributes_length(depth, attrs)?,
-                    AttrsDumpFormat::Full => dump_v7400_attributes_full(depth, attrs)?,
+                    AttrsDumpFormat::Type => dump_v7400_attributes_type(depth, attrs).await?,
+                    AttrsDumpFormat::Length => dump_v7400_attributes_length(depth, attrs).await?,
+                    AttrsDumpFormat::Full => dump_v7400_attributes_full(depth, attrs).await?,
                 }
             }
             Event::EndNode => {
@@ -97,18 +105,16 @@ fn dump_fbx_7400<R: pull_parser::ParserSource>(
     Ok(())
 }
 
-fn dump_v7400_attributes_length<R>(
+async fn dump_v7400_attributes_length<R>(
     depth: usize,
-    mut attrs: pull_parser::v7400::Attributes<'_, R>,
-) -> pull_parser::Result<()>
+    mut attrs: fbxcel_pull_parser::v7400::Attributes<'_, R>,
+) -> fbxcel_pull_parser::Result<()>
 where
-    R: pull_parser::ParserSource,
+    R: AsyncPositionRead + AsyncBufRead + Unpin + Send,
 {
-    use fbxcel::{
-        low::v7400::AttributeValue, pull_parser::v7400::attribute::loaders::DirectLoader,
-    };
+    use fbxcel_pull_parser::v7400::attribute::loaders::DirectLoader;
 
-    while let Some(attr) = attrs.load_next(DirectLoader)? {
+    while let Some(attr) = attrs.load_next(DirectLoader).await? {
         let type_ = attr.type_();
         indent(depth);
         match attr {
@@ -131,16 +137,16 @@ where
     Ok(())
 }
 
-fn dump_v7400_attributes_type<R>(
+async fn dump_v7400_attributes_type<R>(
     depth: usize,
-    mut attrs: pull_parser::v7400::Attributes<'_, R>,
-) -> pull_parser::Result<()>
+    mut attrs: fbxcel_pull_parser::v7400::Attributes<'_, R>,
+) -> fbxcel_pull_parser::Result<()>
 where
-    R: pull_parser::ParserSource,
+    R: AsyncPositionRead + AsyncBufRead + Unpin + Send,
 {
-    use self::pull_parser::v7400::attribute::loaders::TypeLoader;
+    use fbxcel_pull_parser::v7400::attribute::loaders::TypeLoader;
 
-    while let Some(type_) = attrs.load_next(TypeLoader).unwrap() {
+    while let Some(type_) = attrs.load_next(TypeLoader).await? {
         indent(depth);
         println!("Attribute: {:?}", type_);
     }
@@ -148,18 +154,16 @@ where
     Ok(())
 }
 
-fn dump_v7400_attributes_full<R>(
+async fn dump_v7400_attributes_full<R>(
     depth: usize,
-    mut attrs: pull_parser::v7400::Attributes<'_, R>,
-) -> pull_parser::Result<()>
+    mut attrs: fbxcel_pull_parser::v7400::Attributes<'_, R>,
+) -> fbxcel_pull_parser::Result<()>
 where
-    R: pull_parser::ParserSource,
+    R: AsyncPositionRead + AsyncBufRead + Unpin + Send,
 {
-    use fbxcel::{
-        low::v7400::AttributeValue, pull_parser::v7400::attribute::loaders::DirectLoader,
-    };
+    use fbxcel_pull_parser::v7400::attribute::loaders::DirectLoader;
 
-    while let Some(attr) = attrs.load_next(DirectLoader)? {
+    while let Some(attr) = attrs.load_next(DirectLoader).await? {
         let type_ = attr.type_();
         indent(depth);
         match attr {

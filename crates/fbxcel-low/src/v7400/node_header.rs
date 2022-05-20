@@ -1,10 +1,5 @@
 //! Node header.
 
-use async_trait::async_trait;
-use byte_order_reader::FromAsyncReader;
-use futures_lite::AsyncRead;
-use std::io::{Error, Result};
-
 /// Node header.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct NodeHeader {
@@ -37,27 +32,5 @@ impl NodeHeader {
             bytelen_attributes: 0,
             bytelen_name: 0,
         }
-    }
-}
-
-#[async_trait]
-impl<R> FromAsyncReader<R> for NodeHeader
-where
-    R: AsyncRead + Unpin + Send,
-{
-    type Error = Error;
-
-    async fn from_async_reader(reader: &mut R) -> Result<Self> {
-        let end_offset = u32::from_async_reader(reader).await? as u64;
-        let num_attributes = u32::from_async_reader(reader).await? as u64;
-        let bytelen_attributes = u32::from_async_reader(reader).await? as u64;
-        let bytelen_name = u8::from_async_reader(reader).await?;
-        let inner = NodeHeader {
-            end_offset,
-            num_attributes,
-            bytelen_attributes,
-            bytelen_name,
-        };
-        Ok(inner)
     }
 }

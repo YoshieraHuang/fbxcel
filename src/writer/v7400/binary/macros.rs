@@ -42,12 +42,12 @@ macro_rules! write_v7400_binary {
         writer=$writer:expr,
         tree={$($tree:tt)*},
     ) => {{
-        let mut f = || -> $crate::writer::v7400::binary::Result<()> {
+        let f = async {
             let _writer = &mut $writer;
             write_v7400_binary! { @__node, _writer, $($tree)* };
-            Ok(())
+            std::result::Result::<_, $crate::writer::v7400::binary::Error>::Ok(())
         };
-        f()
+        f.await
     }};
 
 
@@ -62,9 +62,9 @@ macro_rules! write_v7400_binary {
         }
         $($rest:tt)*
     ) => {{
-        $writer.new_node(stringify!($name))?;
+        $writer.new_node(stringify!($name)).await?;
         write_v7400_binary! { @__node, $writer, $($subtree)* }
-        $writer.close_node()?;
+        $writer.close_node().await?;
         write_v7400_binary! { @__node, $writer, $($rest)* }
     }};
     (@__node, $writer:ident,
@@ -73,13 +73,13 @@ macro_rules! write_v7400_binary {
         }
         $($rest:tt)*
     ) => {{
-        let mut _attrs = $writer.new_node(stringify!($name))?;
+        let mut _attrs = $writer.new_node(stringify!($name)).await?;
         $({
             let attr = $attr;
-            write_v7400_binary!(@__attr, _attrs, attr.into())?;
+            write_v7400_binary!(@__attr, _attrs, attr.into());
         })*
         write_v7400_binary! { @__node, $writer, $($subtree)* }
-        $writer.close_node()?;
+        $writer.close_node().await?;
         write_v7400_binary! { @__node, $writer, $($rest)* }
     }};
     (@__node, $writer:ident,
@@ -88,56 +88,53 @@ macro_rules! write_v7400_binary {
         }
         $($rest:tt)*
     ) => {{
-        let mut _attrs = $writer.new_node(stringify!($name))?;
-        $attrs.into_iter().try_for_each(|attr: $crate::low::v7400::AttributeValue| {
-            write_v7400_binary!(@__attr, _attrs, attr.into())
-        })?;
+        let mut _attrs = $writer.new_node(stringify!($name)).await?;
+        for attr in $attrs.into_iter() {
+            write_v7400_binary!(@__attr, _attrs, attr)
+        };
         write_v7400_binary! { @__node, $writer, $($subtree)* }
-        $writer.close_node()?;
+        $writer.close_node().await?;
         write_v7400_binary! { @__node, $writer, $($rest)* }
     }};
 
     (@__attr, $attrs:ident, $attr:expr) => {{
-        use $crate::low::v7400::AttributeValue::*;
+        use fbxcel_low::v7400::AttributeValue::*;
         match $attr {
-            Bool(v) => $attrs.append_bool(v),
-            I16(v) => $attrs.append_i16(v),
-            I32(v) => $attrs.append_i32(v),
-            I64(v) => $attrs.append_i64(v),
-            F32(v) => $attrs.append_f32(v),
-            F64(v) => $attrs.append_f64(v),
-            ArrBool(v) => $attrs.append_arr_bool_from_iter(None, v),
-            ArrI32(v) => $attrs.append_arr_i32_from_iter(None, v),
-            ArrI64(v) => $attrs.append_arr_i64_from_iter(None, v),
-            ArrF32(v) => $attrs.append_arr_f32_from_iter(None, v),
-            ArrF64(v) => $attrs.append_arr_f64_from_iter(None, v),
-            Binary(v) => $attrs.append_binary_direct(&v),
-            String(v) => $attrs.append_string_direct(&v),
+            Bool(v) => $attrs.append_bool(v).await?,
+            I16(v) => $attrs.append_i16(v).await?,
+            I32(v) => $attrs.append_i32(v).await?,
+            I64(v) => $attrs.append_i64(v).await?,
+            F32(v) => $attrs.append_f32(v).await?,
+            F64(v) => $attrs.append_f64(v).await?,
+            ArrBool(v) => $attrs.append_arr_bool_from_iter(None, v).await?,
+            ArrI32(v) => $attrs.append_arr_i32_from_iter(None, v).await?,
+            ArrI64(v) => $attrs.append_arr_i64_from_iter(None, v).await?,
+            ArrF32(v) => $attrs.append_arr_f32_from_iter(None, v).await?,
+            ArrF64(v) => $attrs.append_arr_f64_from_iter(None, v).await?,
+            Binary(v) => $attrs.append_binary_direct(&v).await?,
+            String(v) => $attrs.append_string_direct(&v).await?,
         }
     }};
 }
 
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
+    use crate::writer::v7400::binary::{Result, Writer};
+    use fbxcel_low::FbxVersion;
+    use futures_lite::io::Cursor;
 
-    use crate::{
-        low::FbxVersion,
-        writer::v7400::binary::{Result, Writer},
-    };
-
-    #[test]
-    fn empty_writer() -> Result<()> {
-        let mut writer = Writer::new(Cursor::new(Vec::new()), FbxVersion::V7_4)?;
+    #[async_std::test]
+    async fn empty_writer() -> Result<()> {
+        let mut writer = Writer::new(Cursor::new(Vec::new()), FbxVersion::V7_4).await?;
         write_v7400_binary!(writer = writer, tree = {},)?;
-        let _buf = writer.finalize_and_flush(&Default::default())?;
+        let _buf = writer.finalize_and_flush(&Default::default()).await?;
 
         Ok(())
     }
 
-    #[test]
-    fn empty_node() -> Result<()> {
-        let mut writer = Writer::new(Cursor::new(Vec::new()), FbxVersion::V7_4)?;
+    #[async_std::test]
+    async fn empty_node() -> Result<()> {
+        let mut writer = Writer::new(Cursor::new(Vec::new()), FbxVersion::V7_4).await?;
         write_v7400_binary!(
             writer=writer,
             tree={
@@ -145,14 +142,14 @@ mod tests {
                 World: {},
             },
         )?;
-        let _buf = writer.finalize_and_flush(&Default::default())?;
+        let _buf = writer.finalize_and_flush(&Default::default()).await?;
 
         Ok(())
     }
 
-    #[test]
-    fn nested_node() -> Result<()> {
-        let mut writer = Writer::new(Cursor::new(Vec::new()), FbxVersion::V7_4)?;
+    #[async_std::test]
+    async fn nested_node() -> Result<()> {
+        let mut writer = Writer::new(Cursor::new(Vec::new()), FbxVersion::V7_4).await?;
         write_v7400_binary!(
             writer=writer,
             tree={
@@ -169,14 +166,14 @@ mod tests {
                 },
             },
         )?;
-        let _buf = writer.finalize_and_flush(&Default::default())?;
+        let _buf = writer.finalize_and_flush(&Default::default()).await?;
 
         Ok(())
     }
 
-    #[test]
-    fn nested_node_with_attrs() -> Result<()> {
-        let mut writer = Writer::new(Cursor::new(Vec::new()), FbxVersion::V7_4)?;
+    #[async_std::test]
+    async fn nested_node_with_attrs() -> Result<()> {
+        let mut writer = Writer::new(Cursor::new(Vec::new()), FbxVersion::V7_4).await?;
         write_v7400_binary!(
             writer=writer,
             tree={
@@ -193,7 +190,7 @@ mod tests {
                 },
             },
         )?;
-        let _buf = writer.finalize_and_flush(&Default::default())?;
+        let _buf = writer.finalize_and_flush(&Default::default()).await?;
 
         Ok(())
     }

@@ -13,7 +13,7 @@ use crate::FbxVersion;
 const MAGIC_LEN: usize = 23;
 
 /// Magic binary.
-pub(crate) const MAGIC: &[u8; MAGIC_LEN] = b"Kaydara FBX Binary  \x00\x1a\x00";
+pub const MAGIC: &[u8; MAGIC_LEN] = b"Kaydara FBX Binary  \x00\x1a\x00";
 
 /// Header read error.
 #[derive(Debug, Error)]

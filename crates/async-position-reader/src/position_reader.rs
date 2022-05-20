@@ -13,6 +13,7 @@ use crate::{AsyncPositionRead, InnerAsyncPositionReader};
 pin_project! {
     /// Reader with seekable backend.
     /// Only works with reader implementing `AsyncSeek` trait.
+    #[derive(Debug)]
     pub struct SeekableReader<R> {
         #[pin]
         inner: InnerAsyncPositionReader<R>
@@ -87,6 +88,7 @@ where
 
 pin_project! {
     /// Simple Reader that works with any async reader types
+    #[derive(Debug)]
     pub struct SimpleReader<R> {
         #[pin]
         inner: InnerAsyncPositionReader<R>

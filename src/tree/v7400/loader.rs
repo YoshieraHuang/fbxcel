@@ -1,17 +1,18 @@
 //! FBX data tree loader.
 
+use async_position_reader::AsyncPositionRead;
+use fbxcel_low::v7400::FbxFooter;
+use futures_lite::{AsyncBufRead, StreamExt};
 use indextree::Arena;
 use log::{debug, error, trace};
 use string_interner::StringInterner;
 
-use crate::{
-    low::v7400::FbxFooter,
-    pull_parser::{
-        v7400::{attribute::loaders::DirectLoader, Event, Parser, StartNode},
-        Error as ParserError, ParserSource,
-    },
-    tree::v7400::{LoadError, NodeData, NodeId, NodeNameSym, Tree},
+use fbxcel_pull_parser::{
+    v7400::{attribute::loaders::DirectLoader, Event, Parser, StartNode},
+    Error as ParserError,
 };
+
+use crate::tree::v7400::{LoadError, NodeData, NodeId, NodeNameSym, Tree};
 
 /// FBX data tree loader.
 #[derive(Debug, Clone)]
@@ -40,10 +41,13 @@ impl Loader {
     ///
     /// If the tree is successfully read but FBX footer is not,
     /// `Ok(tree, Err(parser_error))` is returned.
-    pub fn load<R: ParserSource>(
+    pub async fn load<R>(
         mut self,
         parser: &mut Parser<R>,
-    ) -> Result<(Tree, Result<Box<FbxFooter>, ParserError>), LoadError> {
+    ) -> Result<(Tree, Result<Box<FbxFooter>, ParserError>), LoadError>
+    where
+        R: AsyncPositionRead + AsyncBufRead + Unpin + Send,
+    {
         debug!("Loading FBX data tree from a parser");
 
         if parser.is_used() {
@@ -58,13 +62,13 @@ impl Loader {
                 !open_nodes.is_empty(),
                 "Open nodes stack should not be empty on loop start"
             );
-            match parser.next_event()? {
+            match parser.next_event().await? {
                 Event::StartNode(start) => {
                     trace!("Got `Event::StartNode(name={:?})`", start.name());
                     let parent = open_nodes
                         .last_mut()
                         .expect("Should never fail: Open nodes stack should not be empty here");
-                    let current = self.add_node(*parent, start)?;
+                    let current = self.add_node(*parent, start).await?;
 
                     // Update the open nodes stack.
                     open_nodes.push(current);
@@ -95,11 +99,14 @@ impl Loader {
     }
 
     /// Creates and adds a new node to the tree.
-    fn add_node<R: ParserSource>(
+    async fn add_node<R>(
         &mut self,
         parent: NodeId,
         start: StartNode<'_, R>,
-    ) -> Result<NodeId, LoadError> {
+    ) -> Result<NodeId, LoadError>
+    where
+        R: AsyncPositionRead + AsyncBufRead + Unpin + Send,
+    {
         trace!(
             "Adding a new child name={:?} to the parent {:?}",
             start.name(),
@@ -112,7 +119,8 @@ impl Loader {
             let attributes = start
                 .attributes()
                 .into_iter(std::iter::repeat(DirectLoader))
-                .collect::<Result<Vec<_>, _>>()?;
+                .try_collect()
+                .await?;
 
             NodeId::new(self.arena.new_node(NodeData::new(name_sym, attributes)))
         };

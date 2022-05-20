@@ -19,7 +19,7 @@ pub enum ArrayAttributeEncoding {
 
 impl ArrayAttributeEncoding {
     /// Creates a new `ArrayEncoding` from the given raw value.
-    pub(crate) fn from_u32(v: u32) -> Result<Self, LowError> {
+    pub fn from_u32(v: u32) -> Result<Self, LowError> {
         match v {
             0 => Ok(ArrayAttributeEncoding::Direct),
             1 => Ok(ArrayAttributeEncoding::Zlib),
@@ -30,7 +30,7 @@ impl ArrayAttributeEncoding {
     /// Returns the raw value.
     #[cfg(feature = "writer")]
     #[cfg_attr(feature = "docsrs", doc(cfg(feature = "writer")))]
-    pub(crate) fn to_u32(self) -> u32 {
+    pub fn to_u32(self) -> u32 {
         match self {
             ArrayAttributeEncoding::Direct => 0,
             ArrayAttributeEncoding::Zlib => 1,

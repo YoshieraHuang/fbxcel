@@ -1,0 +1,18 @@
+[package]
+name = "fbxcel-pull-parser"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+fbxcel-low = { path = "../fbxcel-low" }
+log = "0.4.17"
+async-position-reader = { path = "../async-position-reader" }
+thiserror = "1"
+byte-order-reader = { path = "../byte-order-reader" }
+byteorder = "1"
+futures-core = "0.3"
+futures-lite = "1.2"
+async-compression = { version = "0.3", features = [ "zlib", "futures-io" ] }
+async-trait = "0.1"

@@ -38,7 +38,7 @@ pub enum AttributeType {
 
 impl AttributeType {
     /// Creates an `AttributeType` from the given type code.
-    pub(crate) fn from_type_code(code: u8) -> Result<Self, LowError> {
+    pub fn from_type_code(code: u8) -> Result<Self, LowError> {
         match code {
             b'C' => Ok(AttributeType::Bool),
             b'Y' => Ok(AttributeType::I16),
@@ -60,7 +60,7 @@ impl AttributeType {
     /// Returns the type code.
     #[cfg(feature = "writer")]
     #[cfg_attr(feature = "docsrs", doc(cfg(feature = "writer")))]
-    pub(crate) fn type_code(self) -> u8 {
+    pub fn type_code(self) -> u8 {
         match self {
             AttributeType::Bool => b'C',
             AttributeType::I16 => b'Y',
