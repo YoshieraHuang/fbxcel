@@ -5,8 +5,6 @@
 
 // use byte_order_reader::AsyncByteOrderRead;
 
-// use crate::pull_parser::{v7400::Parser, ParserSource, Result};
-
 use super::Parser;
 use crate::{error::DataError, Result, SyntacticPosition, Warning};
 use async_position_reader::AsyncPositionRead;
@@ -28,20 +26,6 @@ pub(crate) trait FromAsyncParser<R>: Sized {
     where
         R: AsyncPositionRead + Unpin + Send;
 }
-
-// #[async_trait]
-// impl<R, T> FromAsyncParser<R> for T
-// where
-//     R: AsyncPositionRead + Unpin + Send,
-//     T: FromAsyncReader<R>,
-//     <T as FromAsyncReader<R>>::Error: Into<Error>,
-// {
-//     async fn from_async_parser(parser: &mut Parser<R>) -> Result<Self> {
-//         T::from_async_reader(parser.reader())
-//             .await
-//             .map_err(|e| e.into())
-//     }
-// }
 
 #[async_trait]
 impl<R> FromAsyncParser<R> for NodeHeader
