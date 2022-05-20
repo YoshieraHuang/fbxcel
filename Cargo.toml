@@ -28,7 +28,8 @@ members = [
     "crates/fbxcel-low",
     "crates/fbxcel-pull-parser",
     "crates/fbxcel-tree",
-    "crates/fbxcel-writer"
+    "crates/fbxcel-writer",
+    "crates/fbxcel-dom",
 ]
 
 [features]
@@ -36,12 +37,14 @@ default = []
 
 tree = [ "fbxcel-tree", "fbxcel-writer/tree" ]
 writer = [ "fbxcel-writer" ]
+dom = [ "fbxcel-dom" ]
 
 [dependencies]
 fbxcel-low = { path = "./crates/fbxcel-low" }
 fbxcel-pull-parser = { path = "./crates/fbxcel-pull-parser" }
 fbxcel-tree = { path = "./crates/fbxcel-tree", optional = true }
 fbxcel-writer = { path = "./crates/fbxcel-writer", optional = true }
+fbxcel-dom = { path = "./crates/fbxcel-dom", optional = true }
 
 
 [dev-dependencies]
@@ -60,3 +63,7 @@ name = "dump-pull-parser-events"
 [[example]]
 name = "load-tree"
 required-features = ["tree"]
+
+[[example]]
+name = "load-dom"
+required-features = ["dom"]

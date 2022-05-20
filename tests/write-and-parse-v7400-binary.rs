@@ -6,8 +6,8 @@ use fbxcel::{
         any::{from_seekable_reader, AnyParser},
         v7400::attribute::loaders::DirectLoader,
     },
-    writer::write_v7400_binary,
     writer::v7400::binary::{FbxFooter, Writer},
+    writer::write_v7400_binary,
 };
 use futures_lite::io::Cursor;
 use std::{

@@ -6,8 +6,8 @@ use std::sync::{Arc, Mutex};
 use fbxcel::{
     low::FbxVersion,
     pull_parser::any::{from_seekable_reader, AnyParser},
-    tree::v7400::Loader as TreeLoader,
     tree::tree_v7400,
+    tree::v7400::Loader as TreeLoader,
     writer::v7400::binary::Writer,
 };
 use futures_lite::io::Cursor;

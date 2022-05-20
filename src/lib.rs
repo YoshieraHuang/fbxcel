@@ -27,3 +27,7 @@ pub use fbxcel_tree as tree;
 #[cfg(feature = "writer")]
 #[cfg_attr(feature = "docsrs", doc(cfg(feature = "writer")))]
 pub use fbxcel_writer as writer;
+
+#[cfg(feature = "dom")]
+#[cfg_attr(feature = "docsrs", doc(cfg(feature = "dom")))]
+pub use fbxcel_dom as dom;

@@ -331,7 +331,7 @@ impl<W> Writer<W> {
     /// Writes the given tree.
     #[cfg(feature = "tree")]
     #[cfg_attr(feature = "docsrs", doc(cfg(feature = "tree")))]
-    pub async fn write_tree(&mut self, tree: &crate::tree::v7400::Tree) -> Result<()>
+    pub async fn write_tree(&mut self, tree: fbxcel_tree::v7400::Tree) -> Result<()>
     where
         W: AsyncWrite + AsyncSeek + Unpin,
     {

@@ -294,7 +294,6 @@ impl<R> Parser<R> {
 
         // Read node header.
         let node_header = NodeHeader::from_async_parser(self).await?;
-        println!("node header: {:?}", node_header);
 
         let header_end_offset = self.reader().position();
 
