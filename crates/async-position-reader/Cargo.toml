@@ -9,3 +9,7 @@ edition = "2021"
 futures-lite = "1.12"
 async-trait = "0.1"
 pin-project-lite = "0.2"
+
+[dev-dependencies]
+async-std = { version = "1.11", features = [ "attributes" ]}
+anyhow = "1"

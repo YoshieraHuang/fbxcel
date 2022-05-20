@@ -4,7 +4,7 @@ use std::fmt;
 
 use fbxcel_low::v7400::AttributeValue;
 
-use crate::tree::v7400::{NodeData, NodeId, NodeNameSym, Tree};
+use crate::v7400::{NodeData, NodeId, NodeNameSym, Tree};
 
 /// Node handle.
 #[derive(Debug, Clone, Copy)]

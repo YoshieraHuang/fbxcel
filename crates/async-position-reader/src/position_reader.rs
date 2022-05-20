@@ -1,14 +1,14 @@
 use std::{
-    io::Result,
+    io::{Result, SeekFrom},
     pin::Pin,
     task::{Context, Poll},
 };
 
 use async_trait::async_trait;
-use futures_lite::{AsyncBufRead, AsyncRead, AsyncSeek};
+use futures_lite::{ready, AsyncBufRead, AsyncRead, AsyncSeek, AsyncSeekExt};
 use pin_project_lite::pin_project;
 
-use crate::{AsyncPositionRead, InnerAsyncPositionReader};
+use crate::AsyncPositionRead;
 
 pin_project! {
     /// Reader with seekable backend.
@@ -16,7 +16,9 @@ pin_project! {
     #[derive(Debug)]
     pub struct SeekableReader<R> {
         #[pin]
-        inner: InnerAsyncPositionReader<R>
+        inner: R,
+        // cached position
+        position: u64,
     }
 }
 
@@ -26,15 +28,18 @@ where
 {
     /// Create a new `SeekableReader`
     pub fn new(inner: R) -> Self {
+        Self { inner, position: 0 }
+    }
+
+    pub fn with_offset(inner: R, offset: u64) -> Self {
         Self {
-            inner: InnerAsyncPositionReader::new(inner),
+            inner,
+            position: offset,
         }
     }
 
-    pub fn with_offset(inner: R, offset: usize) -> Self {
-        Self {
-            inner: InnerAsyncPositionReader::with_offset(inner, offset),
-        }
+    pub fn advance(&mut self, offset: u64) {
+        self.position += offset;
     }
 }
 
@@ -47,7 +52,12 @@ where
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<Result<usize>> {
-        self.project().inner.poll_read(cx, buf)
+        let this = self.project();
+        let n = ready!(this.inner.poll_read(cx, buf));
+        if let Ok(n) = n {
+            *(this.position) += n as u64;
+        }
+        Poll::Ready(n)
     }
 
     fn poll_read_vectored(
@@ -55,20 +65,36 @@ where
         cx: &mut Context<'_>,
         bufs: &mut [std::io::IoSliceMut<'_>],
     ) -> Poll<Result<usize>> {
-        self.project().inner.poll_read_vectored(cx, bufs)
+        let this = self.project();
+        let n = ready!(this.inner.poll_read_vectored(cx, bufs));
+        if let Ok(n) = n {
+            *(this.position) += n as u64;
+        }
+        Poll::Ready(n)
+    }
+}
+
+impl<R> AsyncSeek for SeekableReader<R>
+where
+    R: AsyncSeek + Unpin + Send,
+{
+    fn poll_seek(self: Pin<&mut Self>, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
+        self.project().inner.poll_seek(cx, pos)
     }
 }
 
 impl<R> AsyncBufRead for SeekableReader<R>
 where
-    R: AsyncBufRead + Unpin + Send,
+    R: AsyncBufRead + AsyncSeek + Unpin + Send,
 {
     fn poll_fill_buf(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<&[u8]>> {
         self.project().inner.poll_fill_buf(cx)
     }
 
     fn consume(self: Pin<&mut Self>, amt: usize) {
-        self.project().inner.consume(amt)
+        let this = self.project();
+        this.inner.consume(amt);
+        *(this.position) += amt as u64;
     }
 }
 
@@ -78,79 +104,81 @@ where
     R: AsyncRead + AsyncSeek + Unpin + Send,
 {
     fn position(&self) -> u64 {
-        self.inner.position() as u64
+        self.position
     }
 
-    async fn skip_distance(&mut self, distance: u64) -> Result<()> {
-        self.inner.skip_distance(distance).await
-    }
-}
-
-pin_project! {
-    /// Simple Reader that works with any async reader types
-    #[derive(Debug)]
-    pub struct SimpleReader<R> {
-        #[pin]
-        inner: InnerAsyncPositionReader<R>
-    }
-}
-
-impl<R> SimpleReader<R>
-where
-    R: AsyncRead + Unpin + Send,
-{
-    pub fn new(inner: R) -> Self {
-        Self {
-            inner: InnerAsyncPositionReader::new(inner),
+    async fn skip_distance(&mut self, mut distance: u64) -> Result<()> {
+        while distance > 0 {
+            let part = std::cmp::min(distance, std::i64::MAX as u64);
+            self.inner.seek(SeekFrom::Current(part as i64)).await?;
+            self.advance(part);
+            distance -= part;
         }
-    }
-
-    pub fn with_offset(inner: R, offset: usize) -> Self {
-        Self {
-            inner: InnerAsyncPositionReader::with_offset(inner, offset),
-        }
+        Ok(())
     }
 }
 
-impl<R> AsyncRead for SimpleReader<R>
-where
-    R: AsyncRead + Unpin + Send,
-{
-    fn poll_read(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<Result<usize>> {
-        self.project().inner.poll_read(cx, buf)
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures_lite::{io::Cursor, AsyncRead, AsyncReadExt};
+
+    fn prepare_iota() -> Cursor<Vec<u8>> {
+        let orig = (0..=255).collect::<Vec<u8>>();
+        Cursor::new(orig)
     }
 
-    fn poll_read_vectored(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        bufs: &mut [std::io::IoSliceMut<'_>],
-    ) -> Poll<Result<usize>> {
-        self.project().inner.poll_read_vectored(cx, bufs)
-    }
-}
-
-impl<R> AsyncBufRead for SimpleReader<R>
-where
-    R: AsyncBufRead + Unpin + Send,
-{
-    fn poll_fill_buf(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<&[u8]>> {
-        self.project().inner.poll_fill_buf(cx)
+    #[async_std::test]
+    async fn read() {
+        let reader = SeekableReader::new(prepare_iota());
+        assert_eq!(
+            reader.position(),
+            0,
+            "`PositionCacheReader::new()` should return a reader with position 0"
+        );
+        check_read_with_offset(reader, 0).await;
     }
 
-    fn consume(self: Pin<&mut Self>, amt: usize) {
-        self.project().inner.consume(amt)
+    #[async_std::test]
+    async fn read_with_offset() -> anyhow::Result<()> {
+        const OFFSET: u64 = 60;
+        let reader = SeekableReader::with_offset(prepare_iota(), OFFSET);
+        assert_eq!(
+            reader.position(),
+            OFFSET,
+            "`PositionCacheReader::with_offset()` should return a reader with the given offset"
+        );
+        check_read_with_offset(reader, OFFSET).await;
+        Ok(())
     }
-}
 
-impl<R> AsyncPositionRead for SimpleReader<R>
-where
-    R: AsyncRead + Unpin + Send,
-{
-    fn position(&self) -> u64 {
-        self.inner.position() as u64
+    async fn check_read_with_offset<R: AsyncRead + AsyncSeek + Unpin + Send>(
+        mut reader: SeekableReader<R>,
+        offset: u64,
+    ) {
+        const BUF_SIZE: usize = 128;
+
+        let mut buf = [0; BUF_SIZE];
+        let size = reader
+            .read(&mut buf)
+            .await
+            .expect("Read from `Cursor<Vec<u8>>` should never fail");
+
+        assert!(
+            size > 0,
+            "Read from non-empty `Cursor<Vec<u8>>` should obtain some data"
+        );
+        // "Offset" is for internal count, not for content to be read.
+        // So here use `0..size`, not `OFFSET..(OFFSET+size)`.
+        assert_eq!(
+            &buf[..size],
+            &(0..size as u8).into_iter().collect::<Vec<u8>>()[..],
+            "Read should obtain correct data"
+        );
+        assert_eq!(
+            reader.position() as usize,
+            offset as usize + size,
+            "Position should be correctly updated after a read"
+        );
     }
 }

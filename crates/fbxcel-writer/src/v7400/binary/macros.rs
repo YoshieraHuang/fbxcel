@@ -45,7 +45,7 @@ macro_rules! write_v7400_binary {
         let f = async {
             let _writer = &mut $writer;
             write_v7400_binary! { @__node, _writer, $($tree)* };
-            std::result::Result::<_, $crate::writer::v7400::binary::Error>::Ok(())
+            std::result::Result::<_, $crate::v7400::binary::Error>::Ok(())
         };
         f.await
     }};
@@ -119,7 +119,7 @@ macro_rules! write_v7400_binary {
 
 #[cfg(test)]
 mod tests {
-    use crate::writer::v7400::binary::{Result, Writer};
+    use crate::v7400::binary::{Result, Writer};
     use fbxcel_low::FbxVersion;
     use futures_lite::io::Cursor;
 

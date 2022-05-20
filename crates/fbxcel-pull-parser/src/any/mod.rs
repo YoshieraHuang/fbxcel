@@ -1,6 +1,6 @@
 //! Types and functions for all supported versions.
 
-use async_position_reader::{AsyncPositionRead, SeekableReader, SimpleReader};
+use async_position_reader::{AsyncPositionRead, SeekableReader};
 use fbxcel_low::{FbxHeader, FbxVersion};
 use futures_lite::{AsyncRead, AsyncSeek};
 
@@ -37,29 +37,6 @@ impl<R: AsyncPositionRead> AnyParser<R> {
 fn parser_version(header: FbxHeader) -> Result<ParserVersion> {
     ParserVersion::from_fbx_version(header.version())
         .ok_or_else(|| Error::UnsupportedVersion(header.version()))
-}
-
-/// Loads a tree from the given reader.
-///
-/// This works for seekable readers (which implement [`std::io::Seek`]), but
-/// [`from_seekable_reader`] should be used for them, because it is more
-/// efficent.
-pub async fn from_reader<R: AsyncRead + Unpin + Send>(
-    mut reader: R,
-) -> Result<AnyParser<SimpleReader<R>>> {
-    let header = FbxHeader::load(&mut reader).await?;
-    match parser_version(header)? {
-        ParserVersion::V7400 => {
-            let parser = v7400::from_reader(header, reader).unwrap_or_else(|e| {
-                panic!(
-                    "Should never fail: FBX version {:?} should be supported by v7400 parser: {}",
-                    header.version(),
-                    e
-                )
-            });
-            Ok(AnyParser::V7400(parser))
-        }
-    }
 }
 
 /// Loads a tree from the given seekable reader.

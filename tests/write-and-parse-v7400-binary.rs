@@ -6,7 +6,7 @@ use fbxcel::{
         any::{from_seekable_reader, AnyParser},
         v7400::attribute::loaders::DirectLoader,
     },
-    write_v7400_binary,
+    writer::write_v7400_binary,
     writer::v7400::binary::{FbxFooter, Writer},
 };
 use futures_lite::io::Cursor;

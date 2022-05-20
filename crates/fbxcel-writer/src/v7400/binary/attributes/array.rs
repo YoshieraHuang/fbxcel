@@ -2,7 +2,7 @@
 
 use std::convert::TryFrom;
 
-use crate::writer::v7400::binary::{
+use crate::v7400::binary::{
     attributes::IntoBytes, stream_position::StreamPosition, AttributesWriter, Error, Result,
 };
 use async_compression::futures::write::ZlibEncoder;

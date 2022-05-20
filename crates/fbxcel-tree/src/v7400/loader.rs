@@ -1,6 +1,5 @@
 //! FBX data tree loader.
 
-use async_position_reader::AsyncPositionRead;
 use fbxcel_low::v7400::FbxFooter;
 use futures_lite::{AsyncBufRead, StreamExt};
 use indextree::Arena;
@@ -9,10 +8,10 @@ use string_interner::StringInterner;
 
 use fbxcel_pull_parser::{
     v7400::{attribute::loaders::DirectLoader, Event, Parser, StartNode},
-    Error as ParserError,
+    AsyncPositionRead, Error as ParserError,
 };
 
-use crate::tree::v7400::{LoadError, NodeData, NodeId, NodeNameSym, Tree};
+use crate::v7400::{LoadError, NodeData, NodeId, NodeNameSym, Tree};
 
 /// FBX data tree loader.
 #[derive(Debug, Clone)]

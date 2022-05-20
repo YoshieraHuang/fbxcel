@@ -1,0 +1,15 @@
+[package]
+name = "fbxcel-tree"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+fbxcel-pull-parser = { path = "../fbxcel-pull-parser" }
+fbxcel-low = { path = "../fbxcel-low" }
+log = "0.4"
+indextree = "4"
+string-interner = { version = "0.13.0", default-features = false, features = ["backends", "inline-more", "std"] }
+thiserror = "1"
+futures-lite = "1.2"

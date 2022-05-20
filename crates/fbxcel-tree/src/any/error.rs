@@ -1,6 +1,6 @@
 //! Error and result types for `tree::any` module.
 
-use crate::tree::v7400::LoadError;
+use crate::v7400::LoadError;
 use thiserror::Error;
 
 /// AnyTree load result.

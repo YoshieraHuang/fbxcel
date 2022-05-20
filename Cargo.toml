@@ -26,35 +26,29 @@ members = [
     "crates/byte-order-reader",
     "crates/async-position-reader",
     "crates/fbxcel-low",
-    "crates/fbxcel-pull-parser"
+    "crates/fbxcel-pull-parser",
+    "crates/fbxcel-tree",
+    "crates/fbxcel-writer"
 ]
 
 [features]
-default = ["tree", "writer"]
+default = []
 
-tree = ["indextree", "string-interner"]
-writer = [ "fbxcel-low/writer" ]
+tree = [ "fbxcel-tree", "fbxcel-writer/tree" ]
+writer = [ "fbxcel-writer" ]
 
 [dependencies]
-byteorder = "1"
-indextree = { version = "4", optional = true }
-async-compression = { version = "0.3", features = [ "zlib", "futures-io" ] }
-log = "0.4.4"
-string-interner = { version = "0.13.0", optional = true, default-features = false, features = ["backends", "inline-more", "std"] }
-thiserror = "1"
-futures-lite = "1.12"
-futures-core = "0.3"
-byte-order-reader = { path = "./crates/byte-order-reader" }
 fbxcel-low = { path = "./crates/fbxcel-low" }
-async-position-reader = { path = "./crates/async-position-reader" }
 fbxcel-pull-parser = { path = "./crates/fbxcel-pull-parser" }
+fbxcel-tree = { path = "./crates/fbxcel-tree", optional = true }
+fbxcel-writer = { path = "./crates/fbxcel-writer", optional = true }
 
-async-trait = "0.1.53"
 
 [dev-dependencies]
 async-std = { version = "1.11", features = ["attributes"] }
 env_logger = "0.9.0"
 anyhow = "1"
+futures-lite = "1.2"
 
 [badges]
 maintenance = { status = "passively-maintained" }

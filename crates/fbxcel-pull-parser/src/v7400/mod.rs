@@ -5,7 +5,7 @@
 pub use self::{
     attribute::{Attributes, LoadAttribute},
     event::{Event, StartNode},
-    parser::{from_reader, from_seekable_reader, Parser},
+    parser::{from_seekable_reader, Parser},
 };
 
 pub mod attribute;

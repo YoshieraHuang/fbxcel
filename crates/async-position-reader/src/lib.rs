@@ -1,15 +1,12 @@
 use async_trait::async_trait;
-use futures_lite::{io, AsyncRead, AsyncReadExt};
-
-mod inner_reader;
-pub use inner_reader::InnerAsyncPositionReader;
+use futures_lite::{io, AsyncRead, AsyncSeek};
 
 mod position_reader;
-pub use position_reader::{SeekableReader, SimpleReader};
+pub use position_reader::SeekableReader;
 
 /// Asynchronous reading with known position
 #[async_trait]
-pub trait AsyncPositionRead: AsyncRead + Sized {
+pub trait AsyncPositionRead: AsyncRead + AsyncSeek + Sized {
     /// Returns the offset of a byte which would be read next.
     fn position(&self) -> u64;
 
@@ -18,12 +15,7 @@ pub trait AsyncPositionRead: AsyncRead + Sized {
     ///
     async fn skip_distance(&mut self, distance: u64) -> io::Result<()>
     where
-        Self: Unpin,
-    {
-        let mut limited = self.take(distance);
-        io::copy(&mut limited, &mut io::sink()).await?;
-        Ok(())
-    }
+        Self: Unpin;
 
     /// Skips (seeks forward) to the given position.
     async fn skip_to(&mut self, pos: u64) -> io::Result<()>
@@ -31,8 +23,8 @@ pub trait AsyncPositionRead: AsyncRead + Sized {
         Self: Unpin,
     {
         let distance = pos
-            .checked_add(self.position())
-            .expect("Attempt to skip backward");
+            .checked_sub(self.position())
+            .expect("Attemp to skip backward");
         self.skip_distance(distance).await
     }
 }

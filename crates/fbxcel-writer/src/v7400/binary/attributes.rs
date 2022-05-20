@@ -5,7 +5,7 @@ use std::{
     io::SeekFrom,
 };
 
-use crate::writer::v7400::binary::{Error, Result, Writer};
+use crate::v7400::binary::{Error, Result, Writer};
 use fbxcel_low::v7400::{ArrayAttributeEncoding, ArrayAttributeHeader, AttributeType};
 use futures_lite::{io, AsyncRead, AsyncSeek, AsyncSeekExt, AsyncWrite, AsyncWriteExt};
 

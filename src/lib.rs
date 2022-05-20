@@ -22,7 +22,8 @@ pub use fbxcel_pull_parser as pull_parser;
 // pub mod pull_parser;
 #[cfg(feature = "tree")]
 #[cfg_attr(feature = "docsrs", doc(cfg(feature = "tree")))]
-pub mod tree;
+pub use fbxcel_tree as tree;
+
 #[cfg(feature = "writer")]
 #[cfg_attr(feature = "docsrs", doc(cfg(feature = "writer")))]
-pub mod writer;
+pub use fbxcel_writer as writer;

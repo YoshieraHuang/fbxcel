@@ -1,6 +1,6 @@
 //! Node type.
 
-use crate::tree::v7400::{NodeHandle, Tree};
+use crate::v7400::{NodeHandle, Tree};
 
 pub(crate) use self::{data::NodeData, name::NodeNameSym};
 

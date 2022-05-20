@@ -59,7 +59,7 @@ macro_rules! impl_val_getter {
         pub fn $res_getter(&self) -> Result<$ty_ret, AttributeType> {
             match self {
                 AttributeValue::$variant(v) => Ok(*v),
-                _ => Err(self.type_()),
+                _ => Err(self.attribute_type()),
             }
         }
     };
@@ -80,7 +80,7 @@ macro_rules! impl_ref_getter {
         pub fn $res_getter(&self) -> Result<&$ty_ret, AttributeType> {
             match self {
                 AttributeValue::$variant(v) => Ok(v),
-                _ => Err(self.type_()),
+                _ => Err(self.attribute_type()),
             }
         }
     };
@@ -88,7 +88,7 @@ macro_rules! impl_ref_getter {
 
 impl AttributeValue {
     /// Returns the value type.
-    pub fn type_(&self) -> AttributeType {
+    pub fn attribute_type(&self) -> AttributeType {
         match self {
             AttributeValue::Bool(_) => AttributeType::Bool,
             AttributeValue::I16(_) => AttributeType::I16,

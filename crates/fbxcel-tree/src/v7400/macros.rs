@@ -83,7 +83,7 @@ macro_rules! tree_v7400 {
     ($($rest:tt)*) => {
         {
             #[allow(unused_mut)]
-            let mut tree = $crate::tree::v7400::Tree::default();
+            let mut tree = $crate::v7400::Tree::default();
             let _root = tree.root().node_id();
             tree_v7400! { @__node, tree, _root, $($rest)* }
             tree
@@ -93,7 +93,7 @@ macro_rules! tree_v7400 {
 
 #[cfg(test)]
 mod tests {
-    use crate::tree::v7400::Tree;
+    use crate::v7400::Tree;
 
     #[test]
     fn empty_trees_eq() {

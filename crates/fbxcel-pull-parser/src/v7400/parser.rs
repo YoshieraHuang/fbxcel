@@ -1,5 +1,5 @@
 //! Parser for FBX 7.4 or later.
-use async_position_reader::{AsyncPositionRead, SeekableReader, SimpleReader};
+use async_position_reader::{AsyncPositionRead, SeekableReader};
 use fbxcel_low::{
     v7400::{FbxFooter, NodeHeader},
     FbxHeader, FbxVersion,
@@ -17,19 +17,6 @@ use super::read::FromAsyncParser;
 /// Warning handler type.
 type WarningHandler = Box<dyn FnMut(Warning, &SyntacticPosition) -> Result<()> + Send>;
 
-/// Creates a new [`Parser`] from the given reader.
-///
-/// Returns an error if the given FBX version in unsupported.
-pub fn from_reader<R>(header: FbxHeader, reader: R) -> Result<Parser<SimpleReader<R>>>
-where
-    R: AsyncRead + Unpin + Send,
-{
-    Parser::create(
-        header.version(),
-        SimpleReader::with_offset(reader, header.len()),
-    )
-}
-
 /// Creates a new [`Parser`] from the given seekable reader.
 ///
 /// Returns an error if the given FBX version in unsupported.
@@ -39,7 +26,7 @@ where
 {
     Parser::create(
         header.version(),
-        SeekableReader::with_offset(reader, header.len()),
+        SeekableReader::with_offset(reader, header.len() as u64),
     )
 }
 
@@ -307,6 +294,7 @@ impl<R> Parser<R> {
 
         // Read node header.
         let node_header = NodeHeader::from_async_parser(self).await?;
+        println!("node header: {:?}", node_header);
 
         let header_end_offset = self.reader().position();
 

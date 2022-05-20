@@ -1,11 +1,12 @@
 use std::path::PathBuf;
 
-use async_position_reader::AsyncPositionRead;
 use async_std::fs::File;
-use fbxcel_low::v7400::AttributeValue;
-use fbxcel_pull_parser::{
-    self,
-    any::{from_seekable_reader, AnyParser},
+use fbxcel::{
+    low::v7400::AttributeValue,
+    pull_parser::{
+        any::{from_seekable_reader, AnyParser},
+        AsyncPositionRead,
+    },
 };
 use futures_lite::{io::BufReader, AsyncBufRead};
 
@@ -115,7 +116,7 @@ where
     use fbxcel_pull_parser::v7400::attribute::loaders::DirectLoader;
 
     while let Some(attr) = attrs.load_next(DirectLoader).await? {
-        let type_ = attr.type_();
+        let type_ = attr.attribute_type();
         indent(depth);
         match attr {
             AttributeValue::Bool(_) => println!("Attribute: {:?}", attr),
@@ -146,9 +147,9 @@ where
 {
     use fbxcel_pull_parser::v7400::attribute::loaders::TypeLoader;
 
-    while let Some(type_) = attrs.load_next(TypeLoader).await? {
+    while let Some(r#type) = attrs.load_next(TypeLoader).await? {
         indent(depth);
-        println!("Attribute: {:?}", type_);
+        println!("Attribute: {:?}", r#type);
     }
 
     Ok(())
@@ -164,7 +165,7 @@ where
     use fbxcel_pull_parser::v7400::attribute::loaders::DirectLoader;
 
     while let Some(attr) = attrs.load_next(DirectLoader).await? {
-        let type_ = attr.type_();
+        let attribute_type = attr.attribute_type();
         indent(depth);
         match attr {
             AttributeValue::Bool(_) => println!("Attribute: {:?}", attr),
@@ -175,43 +176,43 @@ where
             AttributeValue::F64(_) => println!("Attribute: {:?}", attr),
             AttributeValue::ArrBool(v) => println!(
                 "Attribute: type={:?}, len={}, value={:?}",
-                type_,
+                attribute_type,
                 v.len(),
                 v
             ),
             AttributeValue::ArrI32(v) => println!(
                 "Attribute: type={:?}, len={}, value={:?}",
-                type_,
+                attribute_type,
                 v.len(),
                 v
             ),
             AttributeValue::ArrI64(v) => println!(
                 "Attribute: type={:?}, len={}, value={:?}",
-                type_,
+                attribute_type,
                 v.len(),
                 v
             ),
             AttributeValue::ArrF32(v) => println!(
                 "Attribute: type={:?}, len={}, value={:?}",
-                type_,
+                attribute_type,
                 v.len(),
                 v
             ),
             AttributeValue::ArrF64(v) => println!(
                 "Attribute: type={:?}, len={}, value={:?}",
-                type_,
+                attribute_type,
                 v.len(),
                 v
             ),
             AttributeValue::Binary(v) => println!(
                 "Attribute: type={:?}, len={}, value={:?}",
-                type_,
+                attribute_type,
                 v.len(),
                 v
             ),
             AttributeValue::String(v) => println!(
                 "Attribute: type={:?}, len={}, value={:?}",
-                type_,
+                attribute_type,
                 v.len(),
                 v
             ),
