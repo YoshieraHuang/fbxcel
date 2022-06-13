@@ -8,7 +8,7 @@ use fbxcel::{
         AsyncPositionRead,
     },
 };
-use futures_lite::{io::BufReader, AsyncBufRead};
+use futures_util::{io::BufReader, AsyncBufRead};
 
 #[async_std::main]
 async fn main() -> anyhow::Result<()> {

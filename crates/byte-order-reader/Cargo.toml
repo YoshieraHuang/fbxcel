@@ -7,6 +7,5 @@ edition = "2021"
 
 [dependencies]
 byteorder = "1"
-futures-lite = "1.12"
+futures-util = { version = "0.3", features = [ "io" ]}
 pin-project-lite = "0.2"
-async-trait = "0.1"

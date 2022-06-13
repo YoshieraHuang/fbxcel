@@ -1,10 +1,12 @@
-use async_trait::async_trait;
+#![feature(generic_associated_types)]
+
 use byteorder::{ByteOrder, LE};
-use futures_lite::{io, AsyncRead};
-use reader::{
+use futures_util::{AsyncRead, Future};
+pub use reader::{
     ReadF32, ReadF64, ReadI128, ReadI16, ReadI32, ReadI64, ReadI8, ReadU16, ReadU32, ReadU64,
     ReadU8,
 };
+use std::io::Error;
 
 mod reader;
 mod util;
@@ -59,14 +61,16 @@ pub trait AsyncByteOrderRead: Sized + AsyncRead {
 
 impl<T> AsyncByteOrderRead for T where T: AsyncRead {}
 
-#[async_trait]
 pub trait FromAsyncReader<R>: Sized
 where
-    R: io::AsyncRead + Unpin + Send,
+    R: AsyncRead + Unpin + Send,
 {
-    type Error: From<io::Error>;
+    type Error: From<Error>;
+    type Fut<'a>: Future<Output = Result<Self, Self::Error>> + 'a
+    where
+        R: 'a;
 
-    async fn from_async_reader(reader: &mut R) -> Result<Self, Self::Error>;
+    fn from_async_reader(reader: &mut R) -> Self::Fut<'_>;
 }
 
 macro_rules! from_reader_impl {
@@ -76,45 +80,43 @@ macro_rules! from_reader_impl {
         ),*
     ) => {
         $(
-            #[async_trait]
             impl<R> FromAsyncReader<R> for $ty
             where
-                R: io::AsyncRead + Unpin + Send
+                R: AsyncRead + Unpin + Send
             {
-                type Error = io::Error;
+                type Error = Error;
+                type Fut<'a> = $reader<&'a mut R, LE> where R: 'a;
 
-                async fn from_async_reader(reader: &mut R) -> io::Result<Self>
-                where
-                    R: 'async_trait
+                fn from_async_reader(reader: &mut R) -> Self::Fut<'_>
                 {
-                    $reader::<&mut R, LE>::new(reader).await
+                    $reader::<&mut R, LE>::new(reader)
                 }
             }
         )*
     }
 }
 
-#[async_trait]
 impl<R> FromAsyncReader<R> for u8
 where
-    R: io::AsyncRead + Unpin + Send,
+    R: AsyncRead + Unpin + Send,
 {
-    type Error = io::Error;
+    type Error = Error;
+    type Fut<'a> = ReadU8<&'a mut R> where R: 'a;
 
-    async fn from_async_reader(reader: &mut R) -> io::Result<Self> {
-        ReadU8::new(reader).await
+    fn from_async_reader(reader: &mut R) -> Self::Fut<'_> {
+        ReadU8::new(reader)
     }
 }
 
-#[async_trait]
 impl<R> FromAsyncReader<R> for i8
 where
-    R: io::AsyncRead + Unpin + Send,
+    R: AsyncRead + Unpin + Send,
 {
-    type Error = io::Error;
+    type Error = Error;
+    type Fut<'a> = ReadI8<&'a mut R> where R: 'a;
 
-    async fn from_async_reader(reader: &mut R) -> io::Result<Self> {
-        ReadI8::new(reader).await
+    fn from_async_reader(reader: &mut R) -> Self::Fut<'_> {
+        ReadI8::new(reader)
     }
 }
 

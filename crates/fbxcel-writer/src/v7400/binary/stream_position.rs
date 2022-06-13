@@ -1,6 +1,6 @@
 use std::io::SeekFrom;
 
-use futures_lite::{io::SeekFuture, AsyncSeek, AsyncSeekExt};
+use futures_util::{io::SeekFuture, AsyncSeek, AsyncSeekExt};
 
 /// This method exists in `futures::AsyncSeekExt` but not in `futures-lite::AsyncSeekExt`.
 /// Have to implement it by myself here.

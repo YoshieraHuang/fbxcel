@@ -3,8 +3,7 @@
 use crate::{v7400::LoadAttribute, Result};
 use async_trait::async_trait;
 use fbxcel_low::v7400::AttributeType;
-use futures_core::Stream;
-use futures_lite::AsyncBufRead;
+use futures_util::{AsyncBufRead, Stream};
 
 /// Loader for node attribute type ([`AttributeType`]).
 ///

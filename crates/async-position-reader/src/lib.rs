@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use futures_lite::{io, AsyncRead, AsyncSeek};
+use futures_util::{io, AsyncRead, AsyncSeek};
 
 mod position_reader;
 pub use position_reader::SeekableReader;

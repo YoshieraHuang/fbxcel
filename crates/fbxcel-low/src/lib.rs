@@ -1,3 +1,4 @@
+#![feature(generic_associated_types)]
 //! Low-level or primitive data types for FBX binary.
 
 #[cfg(feature = "writer")]

@@ -1,13 +1,14 @@
 use std::{
-    marker::{PhantomData, PhantomPinned},
+    marker::PhantomData,
     pin::Pin,
     task::{Context, Poll},
 };
 
 use crate::ready_ok;
 use byteorder::ByteOrder;
-use futures_lite::{io, AsyncRead, Future};
+use futures_util::{AsyncRead, Future};
 use pin_project_lite::pin_project;
+use std::io::{ErrorKind, Result};
 
 macro_rules! reader {
     ($name:ident, $ty:ty, $reader:ident) => {
@@ -24,8 +25,6 @@ macro_rules! reader {
                 buffer: [u8; $bytes],
                 read: u8,
                 _byte_order: PhantomData<BO>,
-                #[pin]
-                _pin: PhantomPinned
             }
         }
 
@@ -36,7 +35,6 @@ macro_rules! reader {
                     buffer: [0u8; $bytes],
                     read: 0,
                     _byte_order: PhantomData,
-                    _pin: PhantomPinned,
                 }
             }
         }
@@ -46,7 +44,7 @@ macro_rules! reader {
             R: AsyncRead + Unpin,
             BO: ByteOrder,
         {
-            type Output = io::Result<$ty>;
+            type Output = Result<$ty>;
 
             fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
                 let mut this = self.project();
@@ -59,13 +57,15 @@ macro_rules! reader {
                     let mut buf = &mut this.buffer[*this.read as usize..];
                     let n = ready_ok!(this.reader.as_mut().poll_read(cx, &mut buf));
                     if n == 0 {
-                        return Poll::Ready(Err(io::ErrorKind::UnexpectedEof.into()));
+                        return Poll::Ready(Err(ErrorKind::UnexpectedEof.into()));
                     }
 
                     *this.read += n as u8;
                 }
 
                 let num = BO::$reader(this.buffer);
+                // clear the read number and ready for next read
+                *this.read = 0;
 
                 Poll::Ready(Ok(num))
             }
@@ -82,18 +82,12 @@ macro_rules! reader8 {
             pub struct $name<R> {
                 #[pin]
                 reader: R,
-                // Make this future `!Unpin` for compatibility with async trait methods.
-                #[pin]
-                _pin: PhantomPinned,
             }
         }
 
         impl<R> $name<R> {
             pub(crate) fn new(reader: R) -> $name<R> {
-                $name {
-                    reader,
-                    _pin: PhantomPinned,
-                }
+                $name { reader }
             }
         }
 
@@ -101,7 +95,7 @@ macro_rules! reader8 {
         where
             R: AsyncRead + Unpin,
         {
-            type Output = io::Result<$ty>;
+            type Output = Result<$ty>;
 
             fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
                 let this = self.project();
@@ -109,7 +103,7 @@ macro_rules! reader8 {
                 let mut buf = [0; 1];
                 let n = ready_ok!(this.reader.poll_read(cx, &mut buf));
                 if n == 0 {
-                    return Poll::Ready(Err(io::ErrorKind::UnexpectedEof.into()));
+                    return Poll::Ready(Err(ErrorKind::UnexpectedEof.into()));
                 }
 
                 Poll::Ready(Ok(buf[0] as $ty))

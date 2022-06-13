@@ -10,7 +10,7 @@ fbxcel-tree = { path = "../fbxcel-tree" }
 fbxcel-pull-parser = { path = "../fbxcel-pull-parser" }
 fbxcel-low = { path = "../fbxcel-low" }
 thiserror = "1"
-futures-lite = "1.2"
+futures-util = { version = "0.3", features = [ "io" ]}
 log = "0.4.4"
 mint = "0.5"
 rgb = "0.8.12"

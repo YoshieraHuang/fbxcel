@@ -4,7 +4,7 @@ use fbxcel_low::{
     v7400::{FbxFooter, NodeHeader},
     FbxHeader, FbxVersion,
 };
-use futures_lite::{AsyncRead, AsyncReadExt, AsyncSeek};
+use futures_util::{AsyncRead, AsyncReadExt, AsyncSeek};
 
 use crate::{
     error::{DataError, OperationError},
@@ -20,7 +20,7 @@ type WarningHandler = Box<dyn FnMut(Warning, &SyntacticPosition) -> Result<()> +
 /// Creates a new [`Parser`] from the given seekable reader.
 ///
 /// Returns an error if the given FBX version in unsupported.
-pub fn from_seekable_reader<R>(header: FbxHeader, reader: R) -> Result<Parser<SeekableReader<R>>>
+pub fn from_reader<R>(header: FbxHeader, reader: R) -> Result<Parser<SeekableReader<R>>>
 where
     R: AsyncRead + AsyncSeek + Unpin + Send,
 {

@@ -1,6 +1,6 @@
 //! Types and functions for all supported versions.
 
-use futures_lite::{AsyncBufRead, AsyncSeek};
+use futures_util::{AsyncBufRead, AsyncSeek};
 use log::warn;
 
 pub use self::error::Error;

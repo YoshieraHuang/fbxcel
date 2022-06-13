@@ -1,8 +1,7 @@
 //! Node attribute loader.
 
 use async_trait::async_trait;
-use futures_core::Stream;
-use futures_lite::AsyncBufRead;
+use futures_util::{AsyncBufRead, Stream};
 
 use crate::{error::DataError, Result};
 

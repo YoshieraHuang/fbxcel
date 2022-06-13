@@ -5,8 +5,11 @@ use std::task::Context;
 use std::task::Poll;
 
 use async_position_reader::AsyncPositionRead;
-use futures_core::{ready, Stream};
-use futures_lite::{AsyncBufRead, FutureExt};
+use futures_util::future::BoxFuture;
+use futures_util::ready;
+use futures_util::Stream;
+use futures_util::{AsyncBufRead, FutureExt};
+use pin_project_lite::pin_project;
 
 use crate::{
     v7400::attribute::{loader::LoadAttribute, Attributes},
@@ -30,170 +33,143 @@ where
     (min, Some(max))
 }
 
-// /// Loads the next attrbute.
-// async fn load_next<R, V>(
-//     attributes: &mut Attributes<'_, R>,
-//     loaders: &mut impl Stream<Item = V>,
-//     cx: &mut Context,
-// ) -> Option<Result<V::Output>>
-// where
-//     R: AsyncPositionRead + Unpin + Send,
-//     V: LoadAttribute,
-// {
-//     let loader = loaders.next().await?;
-//     attributes.load_next(loader).await.transpose()
+// pin_project! {
+//     /// Node attributes iterator.
+//     pub struct BorrowedStream<'a, 'r, R, I, O> {
+//         attributes: &'a mut Attributes<'r, R>,
+//         loaders: I,
+//         exhausted: bool,
+//         #[pin]
+//         fut: Option<BoxFuture<'a, Result<Option<O>>>>
+//     }
 // }
 
-/// Node attributes iterator.
-#[derive(Debug)]
-pub struct BorrowedStream<'a, 'r, R, I> {
-    /// Attributes.
-    attributes: &'a mut Attributes<'r, R>,
-    /// Loaders.
-    loaders: I,
-}
-
-impl<'a, 'r, R, I, V> BorrowedStream<'a, 'r, R, I>
-where
-    R: AsyncPositionRead,
-    I: Iterator<Item = V>,
-    V: LoadAttribute,
-{
-    /// Creates a new iterator.
-    pub(crate) fn new(attributes: &'a mut Attributes<'r, R>, loaders: I) -> Self {
-        Self {
-            attributes,
-            loaders,
-        }
-    }
-}
-
-impl<'a, 'r, R, I, V> Stream for BorrowedStream<'a, 'r, R, I>
-where
-    R: AsyncPositionRead + AsyncBufRead + Unpin + Send,
-    I: Iterator<Item = V> + Unpin,
-    V: LoadAttribute + Send,
-{
-    type Item = Result<V::Output>;
-
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
-        let this = self.get_mut();
-        let loader = this.loaders.next();
-        Poll::Ready(if let Some(loader) = loader {
-            ready!(this.attributes.load_next(loader).boxed().poll(cx)).transpose()
-        } else {
-            None
-        })
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        make_size_hint_for_attrs(self.attributes, &self.loaders)
-    }
-}
-
-// impl<'a, 'r, R, I, V> FusedStream for BorrowedStream<'a, 'r, R, I>
+// impl<'a, 'r, R, I, V, O> BorrowedStream<'a, 'r, R, I, O>
 // where
-//     R: AsyncPositionRead + Unpin + Send,
+//     R: AsyncPositionRead,
 //     I: Iterator<Item = V>,
-//     V: LoadAttribute,
+//     V: LoadAttribute<Output = O>,
 // {
+//     /// Creates a new iterator.
+//     pub(crate) fn new(attributes: &'a mut Attributes<'r, R>, loaders: I) -> Self {
+//         Self {
+//             attributes,
+//             loaders,
+//             exhausted: false,
+//             fut: None,
+//         }
+//     }
 // }
 
-/// Node attributes iterator with buffered I/O.
-#[derive(Debug)]
-pub struct BorrowedStreamBuffered<'a, 'r, R, I> {
-    /// Attributes.
-    attributes: &'a mut Attributes<'r, R>,
-    /// Loaders.
-    loaders: I,
-}
-
-impl<'a, 'r, R, I, V> BorrowedStreamBuffered<'a, 'r, R, I>
-where
-    R: AsyncPositionRead,
-    I: Iterator<Item = V>,
-    V: LoadAttribute,
-{
-    /// Creates a new iterator.
-    pub(crate) fn new(attributes: &'a mut Attributes<'r, R>, loaders: I) -> Self {
-        Self {
-            attributes,
-            loaders,
-        }
-    }
-}
-
-impl<'a, 'r, R, I, V> Stream for BorrowedStreamBuffered<'a, 'r, R, I>
-where
-    R: AsyncPositionRead + AsyncBufRead + Unpin + Send,
-    I: Iterator<Item = V> + Unpin,
-    V: LoadAttribute + Send,
-{
-    type Item = Result<V::Output>;
-
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
-        let this = self.get_mut();
-        let loader = this.loaders.next();
-        Poll::Ready(if let Some(loader) = loader {
-            ready!(this.attributes.load_next(loader).boxed().poll(cx)).transpose()
-        } else {
-            None
-        })
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        make_size_hint_for_attrs(self.attributes, &self.loaders)
-    }
-}
-
-// impl<'a, 'r, R, I, V> FusedStream for BorrowedStreamBuffered<'a, 'r, R, I>
+// impl<'a, 'r, R, I, V, O> Stream for BorrowedStream<'a, 'r, R, I, O>
 // where
-//     R: AsyncPositionRead + io::BufRead,
-//     I: Iterator<Item = V>,
-//     V: LoadAttribute,
+//     R: AsyncPositionRead + AsyncBufRead + Unpin + Send,
+//     I: Iterator<Item = V> + Unpin,
+//     V: LoadAttribute<Output = O> + Send + 'a,
 // {
+//     type Item = Result<O>;
+
+//     fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> 
+//     {
+//         let mut this = self.project();
+//         let mut fut = match this.fut.take() {
+//             Some(fut) => fut,
+//             None => {
+//                 match this.loaders.next() {
+//                     None => {
+//                         *this.exhausted = true;
+//                         return Poll::Ready(None);
+//                     }
+//                     Some(loader) => {
+//                         this.attributes.load_next(loader).boxed()
+//                     }
+//                 }
+//             }
+//         };
+//         match fut.poll_unpin(cx) {
+//             Poll::Pending => {
+//                 this.fut.set(Some(fut));
+//                 Poll::Pending
+//             },
+//             Poll::Ready(res) => {
+//                 Poll::Ready(res.transpose())
+//             }
+//         }
+//     }
+
+//     fn size_hint(&self) -> (usize, Option<usize>) {
+//         make_size_hint_for_attrs(self.attributes, &self.loaders)
+//     }
 // }
 
-/// Node attributes iterator.
-#[derive(Debug)]
-pub struct OwnedIter<'r, R, I> {
-    /// Attributes.
-    attributes: Attributes<'r, R>,
-    /// Loaders.
-    loaders: I,
+// // impl<'a, 'r, R, I, V> FusedStream for BorrowedStream<'a, 'r, R, I>
+// // where
+// //     R: AsyncPositionRead + Unpin + Send,
+// //     I: Iterator<Item = V>,
+// //     V: LoadAttribute,
+// // {
+// // }
+
+pin_project! {
+    pub struct OwnedIter<'r, R, I, O> {
+        attributes: Attributes<'r, R>,
+        loaders: I,
+        exhausted: bool,
+        #[pin]
+        fut: Option<BoxFuture<'r, Result<Option<O>>>>
+    }
 }
 
-impl<'r, R, I, V> OwnedIter<'r, R, I>
+impl<'r, R, I, V, O> OwnedIter<'r, R, I, O>
 where
     R: AsyncPositionRead,
     I: Iterator<Item = V>,
-    V: LoadAttribute,
+    V: LoadAttribute<Output = O>,
 {
     /// Creates a new `Iter`.
     pub(crate) fn new(attributes: Attributes<'r, R>, loaders: I) -> Self {
         Self {
             attributes,
             loaders,
+            exhausted: false,
+            fut: None,
         }
     }
 }
 
-impl<'r, R, I, V> Stream for OwnedIter<'r, R, I>
+impl<'r, R, I, V, O> Stream for OwnedIter<'r, R, I, O>
 where
     R: AsyncPositionRead + AsyncBufRead + Unpin + Send,
     I: Iterator<Item = V> + Unpin,
-    V: LoadAttribute + Send,
+    V: LoadAttribute<Output = O> + Send + 'r,
 {
     type Item = Result<V::Output>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
-        let this = self.get_mut();
-        let loader = this.loaders.next();
-        Poll::Ready(if let Some(loader) = loader {
-            ready!(this.attributes.load_next(loader).boxed().poll(cx)).transpose()
-        } else {
-            None
-        })
+        let mut this = self.project();
+        let mut fut = match this.fut.take() {
+            Some(fut) => fut,
+            None => {
+                match this.loaders.next() {
+                    None => {
+                        *this.exhausted = true;
+                        return Poll::Ready(None);
+                    }
+                    Some(loader) => {
+                        this.attributes.load_next(loader).boxed()
+                    }
+                }
+            }
+        };
+        match fut.poll_unpin(cx) {
+            Poll::Pending => {
+                this.fut.set(Some(fut));
+                Poll::Pending
+            },
+            Poll::Ready(res) => {
+                Poll::Ready(res.transpose())
+            }
+        }
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
@@ -205,61 +181,6 @@ where
 // where
 //     R: AsyncPositionRead,
 //     I: Iterator<Item = V>,
-//     V: LoadAttribute,
-// {
-// }
-
-/// Node attributes iterator with buffered I/O.
-#[derive(Debug)]
-pub struct OwnedIterBuffered<'r, R, I> {
-    /// Attributes.
-    attributes: Attributes<'r, R>,
-    /// Loaders.
-    loaders: I,
-}
-
-impl<'r, R, I, V> OwnedIterBuffered<'r, R, I>
-where
-    R: AsyncPositionRead,
-    I: Iterator<Item = V>,
-    V: LoadAttribute,
-{
-    /// Creates a new iterator.
-    pub(crate) fn new(attributes: Attributes<'r, R>, loaders: I) -> Self {
-        Self {
-            attributes,
-            loaders,
-        }
-    }
-}
-
-impl<'r, R, I, V> Stream for OwnedIterBuffered<'r, R, I>
-where
-    R: AsyncPositionRead + AsyncBufRead + Unpin + Send,
-    I: Iterator<Item = V> + Unpin,
-    V: LoadAttribute + Send,
-{
-    type Item = Result<V::Output>;
-
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
-        let this = self.get_mut();
-        let loader = this.loaders.next();
-        Poll::Ready(if let Some(loader) = loader {
-            ready!(this.attributes.load_next(loader).boxed().poll(cx)).transpose()
-        } else {
-            None
-        })
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        make_size_hint_for_attrs(&self.attributes, &self.loaders)
-    }
-}
-
-// impl<'r, R, I, V> FusedStream for OwnedIterBuffered<'r, R, I>
-// where
-//     R: AsyncPositionRead + AsyncBufRead + Unpin + Send,
-//     I: FusedIterator<Item = V>,
 //     V: LoadAttribute,
 // {
 // }

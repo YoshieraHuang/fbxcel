@@ -1,9 +1,8 @@
 //! FBX binary header.
 
-use futures_lite::{io, prelude::*};
-
 use byte_order_reader::AsyncByteOrderRead;
 use byteorder::LE;
+use futures_util::{AsyncRead, AsyncReadExt};
 use log::info;
 use thiserror::Error;
 
@@ -19,7 +18,7 @@ pub const MAGIC: &[u8; MAGIC_LEN] = b"Kaydara FBX Binary  \x00\x1a\x00";
 #[derive(Debug, Error)]
 pub enum HeaderError {
     #[error(transparent)]
-    Io(#[from] io::Error),
+    Io(#[from] std::io::Error),
     #[error("FBX magic binary is not detected")]
     MagicNotDetected,
 }
@@ -69,7 +68,7 @@ impl FbxHeader {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures_lite::io::Cursor;
+    use futures_util::io::Cursor;
 
     #[async_std::test]
     async fn header_ok() {

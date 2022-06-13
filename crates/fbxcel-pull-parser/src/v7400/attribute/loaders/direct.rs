@@ -3,8 +3,7 @@
 use crate::{v7400::LoadAttribute, Result};
 use async_trait::async_trait;
 use fbxcel_low::v7400::AttributeValue;
-use futures_core::Stream;
-use futures_lite::{AsyncBufRead, AsyncReadExt, StreamExt};
+use futures_util::{AsyncBufRead, AsyncReadExt, Stream, TryStreamExt};
 
 /// Loader for [`AttributeValue`].
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

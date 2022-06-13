@@ -81,6 +81,7 @@
 //!     ),
 //! }
 //! ```
+#![feature(generic_associated_types)]
 
 pub use self::{
     error::{Error, Result, Warning},

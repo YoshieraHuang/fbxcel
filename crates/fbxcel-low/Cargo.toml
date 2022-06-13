@@ -9,9 +9,10 @@ edition = "2021"
 byte-order-reader = { path = "../byte-order-reader" }
 thiserror = "1"
 byteorder = "1"
-futures-lite = "1.12"
+futures-util = { version = "0.3", features = [ "io" ]}
 log = "0.4"
 async-trait = "0.1"
+pin-project-lite = "0.2"
 
 [dev-dependencies]
 async-std = { version = "1.11", features = [ "attributes" ] }

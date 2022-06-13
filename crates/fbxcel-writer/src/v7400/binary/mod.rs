@@ -92,7 +92,7 @@
 
 use std::{convert::TryFrom, io::SeekFrom};
 
-use futures_lite::{io, AsyncReadExt, AsyncSeek, AsyncSeekExt, AsyncWrite, AsyncWriteExt};
+use futures_util::{io, AsyncReadExt, AsyncSeek, AsyncSeekExt, AsyncWrite, AsyncWriteExt};
 use log::{debug, trace};
 
 use fbxcel_low::{v7400::NodeHeader, FbxVersion, MAGIC};

@@ -9,7 +9,7 @@ use fbxcel::{
     writer::v7400::binary::{FbxFooter, Writer},
     writer::write_v7400_binary,
 };
-use futures_lite::io::Cursor;
+use futures_util::io::Cursor;
 use std::{
     iter,
     sync::{Arc, Mutex},

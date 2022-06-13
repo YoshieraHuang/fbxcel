@@ -121,7 +121,7 @@ macro_rules! write_v7400_binary {
 mod tests {
     use crate::v7400::binary::{Result, Writer};
     use fbxcel_low::FbxVersion;
-    use futures_lite::io::Cursor;
+    use futures_util::io::Cursor;
 
     #[async_std::test]
     async fn empty_writer() -> Result<()> {

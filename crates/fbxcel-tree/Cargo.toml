@@ -12,4 +12,4 @@ log = "0.4"
 indextree = "4"
 string-interner = { version = "0.13.0", default-features = false, features = ["backends", "inline-more", "std"] }
 thiserror = "1"
-futures-lite = "1.2"
+futures-util = { version = "0.3", features = [ "io" ]}

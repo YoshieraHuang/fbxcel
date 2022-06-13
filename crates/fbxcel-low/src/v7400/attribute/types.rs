@@ -1,9 +1,14 @@
 //! Node attribute type.
 
+use std::{
+    pin::Pin,
+    task::{Context, Poll},
+};
+
 use crate::error::LowError;
-use async_trait::async_trait;
-use byte_order_reader::{AsyncByteOrderRead, FromAsyncReader};
-use futures_lite::AsyncRead;
+use byte_order_reader::{ready_ok, AsyncByteOrderRead, FromAsyncReader, ReadU8};
+use futures_util::{AsyncRead, Future};
+use pin_project_lite::pin_project;
 
 /// Node attribute type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -79,16 +84,43 @@ impl AttributeType {
     }
 }
 
-#[async_trait]
 impl<R> FromAsyncReader<R> for AttributeType
 where
     R: AsyncRead + Unpin + Send,
 {
     type Error = LowError;
+    type Fut<'a> = AttributeTypeFut<'a, R> where R: 'a;
 
-    async fn from_async_reader(reader: &mut R) -> Result<Self, LowError> {
-        let type_code = reader.read_u8().await?;
-        let attr_type = Self::from_type_code(type_code)?;
-        Ok(attr_type)
+    fn from_async_reader(reader: &mut R) -> Self::Fut<'_> {
+        Self::Fut::new(reader)
+    }
+}
+
+pin_project! {
+    pub struct AttributeTypeFut<'a, R> {
+        #[pin]
+        inner: ReadU8<&'a mut R>,
+    }
+}
+
+impl<'a, R> AttributeTypeFut<'a, R>
+where
+    R: AsyncRead + Unpin + Send + 'a,
+{
+    fn new(reader: &'a mut R) -> Self {
+        let inner = reader.read_u8();
+        Self { inner }
+    }
+}
+
+impl<'a, R> Future for AttributeTypeFut<'a, R>
+where
+    R: AsyncRead + Unpin + Send + 'a,
+{
+    type Output = Result<AttributeType, LowError>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let type_code = ready_ok!(self.project().inner.poll(cx));
+        Poll::Ready(AttributeType::from_type_code(type_code))
     }
 }

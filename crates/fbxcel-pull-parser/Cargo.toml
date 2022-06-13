@@ -12,7 +12,7 @@ async-position-reader = { path = "../async-position-reader" }
 thiserror = "1"
 byte-order-reader = { path = "../byte-order-reader" }
 byteorder = "1"
-futures-core = "0.3"
-futures-lite = "1.2"
+futures-util = { version = "0.3", features = [ "io" ]}
 async-compression = { version = "0.3", features = [ "zlib", "futures-io" ] }
 async-trait = "0.1"
+pin-project-lite = "0.2"

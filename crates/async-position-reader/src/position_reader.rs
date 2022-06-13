@@ -5,7 +5,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use futures_lite::{ready, AsyncBufRead, AsyncRead, AsyncSeek, AsyncSeekExt};
+use futures_util::{ready, AsyncBufRead, AsyncRead, AsyncSeek, AsyncSeekExt};
 use pin_project_lite::pin_project;
 
 use crate::AsyncPositionRead;
@@ -121,7 +121,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures_lite::{io::Cursor, AsyncRead, AsyncReadExt};
+    use futures_util::{io::Cursor, AsyncRead, AsyncReadExt};
 
     fn prepare_iota() -> Cursor<Vec<u8>> {
         let orig = (0..=255).collect::<Vec<u8>>();

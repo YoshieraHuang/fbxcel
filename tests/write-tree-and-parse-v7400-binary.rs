@@ -10,7 +10,7 @@ use fbxcel::{
     tree::v7400::Loader as TreeLoader,
     writer::v7400::binary::Writer,
 };
-use futures_lite::io::Cursor;
+use futures_util::io::Cursor;
 
 /// Construct tree, export it to binary, parse it and construct tree, and
 /// compare them.

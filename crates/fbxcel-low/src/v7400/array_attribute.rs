@@ -1,8 +1,14 @@
 //! Low-level data types related to array type node attributes.
 
-use async_trait::async_trait;
-use byte_order_reader::FromAsyncReader;
-use futures_lite::AsyncRead;
+use std::{
+    pin::Pin,
+    task::{Context, Poll},
+};
+
+use byte_order_reader::{ready_ok, FromAsyncReader, ReadU32};
+use byteorder::LE;
+use futures_util::{future::BoxFuture, AsyncRead, Future};
+use pin_project_lite::pin_project;
 
 use crate::error::LowError;
 
@@ -38,16 +44,44 @@ impl ArrayAttributeEncoding {
     }
 }
 
-#[async_trait]
 impl<R> FromAsyncReader<R> for ArrayAttributeEncoding
 where
     R: AsyncRead + Unpin + Send,
 {
     type Error = LowError;
+    type Fut<'a> = ArrayAttributeEncodingFut<'a, R> where R: 'a;
 
-    async fn from_async_reader(reader: &mut R) -> Result<Self, Self::Error> {
-        let raw_encoding = u32::from_async_reader(reader).await?;
-        ArrayAttributeEncoding::from_u32(raw_encoding)
+    fn from_async_reader(reader: &mut R) -> Self::Fut<'_> {
+        Self::Fut::new(reader)
+    }
+}
+
+pin_project! {
+    pub struct ArrayAttributeEncodingFut<'a, R> {
+        #[pin]
+        inner: ReadU32<&'a mut R, LE>,
+    }
+}
+
+impl<'a, R> ArrayAttributeEncodingFut<'a, R>
+where
+    R: AsyncRead + Unpin + Send + 'a,
+{
+    fn new(reader: &'a mut R) -> Self {
+        let inner = u32::from_async_reader(reader);
+        Self { inner }
+    }
+}
+
+impl<'a, R> Future for ArrayAttributeEncodingFut<'a, R>
+where
+    R: AsyncRead + Unpin + Send + 'a,
+{
+    type Output = Result<ArrayAttributeEncoding, LowError>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let raw_encoding = ready_ok!(self.project().inner.poll(cx));
+        Poll::Ready(ArrayAttributeEncoding::from_u32(raw_encoding))
     }
 }
 
@@ -62,22 +96,24 @@ pub struct ArrayAttributeHeader {
     pub bytelen: u32,
 }
 
-#[async_trait]
 impl<R> FromAsyncReader<R> for ArrayAttributeHeader
 where
     R: AsyncRead + Unpin + Send,
 {
     type Error = LowError;
+    type Fut<'a> = BoxFuture<'a, Result<Self, Self::Error>> where R: 'a;
 
-    async fn from_async_reader(reader: &mut R) -> Result<Self, LowError> {
-        let elements_count = u32::from_async_reader(reader).await?;
-        let encoding = ArrayAttributeEncoding::from_async_reader(reader).await?;
-        let bytelen = u32::from_async_reader(reader).await?;
+    fn from_async_reader(reader: &mut R) -> Self::Fut<'_> {
+        Box::pin(async move {
+            let elements_count = u32::from_async_reader(reader).await?;
+            let encoding = ArrayAttributeEncoding::from_async_reader(reader).await?;
+            let bytelen = u32::from_async_reader(reader).await?;
 
-        Ok(Self {
-            elements_count,
-            encoding,
-            bytelen,
+            Ok(Self {
+                elements_count,
+                encoding,
+                bytelen,
+            })
         })
     }
 }

@@ -7,7 +7,7 @@ use crate::v7400::binary::{
 };
 use async_compression::futures::write::ZlibEncoder;
 use fbxcel_low::v7400::{ArrayAttributeEncoding, ArrayAttributeHeader, AttributeType};
-use futures_lite::{io, AsyncSeek, AsyncWrite, AsyncWriteExt};
+use futures_util::{io, AsyncSeek, AsyncWrite, AsyncWriteExt};
 
 // /// A trait for types which can be represented as multiple bytes array.
 // pub(crate) trait IntoBytesMulti<E>: Sized {

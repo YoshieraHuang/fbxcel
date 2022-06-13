@@ -1,12 +1,10 @@
 //! Node attributes.
 
-use std::io;
-
 use crate::{error::DataError, v7400::Parser, Result, SyntacticPosition, Warning};
 use async_position_reader::AsyncPositionRead;
 use byte_order_reader::FromAsyncReader;
 use fbxcel_low::v7400::{ArrayAttributeHeader, AttributeType, SpecialAttributeHeader};
-use futures_lite::{AsyncBufRead, AsyncReadExt};
+use futures_util::{AsyncBufRead, AsyncReadExt};
 
 use self::array::{ArrayAttributeValues, AttributeStreamDecoder, BooleanArrayAttributeValues};
 pub use self::loader::LoadAttribute;
@@ -98,34 +96,6 @@ impl<'a, R: 'a + AsyncPositionRead> Attributes<'a, R> {
     where
         V: LoadAttribute + Send,
         R: AsyncPositionRead + AsyncBufRead + Unpin + Send,
-    {
-        self.parser.ensure_continuable()?;
-
-        let start_pos = self.next_attr_start_offset;
-        let attr_index = (self.total_count - self.rest_count) as usize;
-
-        let attr_type = match self.read_next_attr_type().await.map_err(|err| {
-            let err_pos = self.position(start_pos, attr_index);
-            self.parser.set_aborted(err_pos.clone());
-            err.and_position(err_pos)
-        })? {
-            Some(v) => v,
-            None => return Ok(None),
-        };
-
-        self.load_next_impl(attr_type, loader, start_pos, attr_index)
-            .await
-            .map(Some)
-    }
-
-    /// Lets loader load the next node attribute.
-    ///
-    /// This method prefers `V::load_{binary,string}_buffered` to
-    /// `V::load_{binary,string}`.
-    pub async fn load_next_buffered<V>(&mut self, loader: V) -> Result<Option<V::Output>>
-    where
-        R: AsyncPositionRead + AsyncBufRead + Unpin + Send,
-        V: LoadAttribute + Send,
     {
         self.parser.ensure_continuable()?;
 
@@ -295,44 +265,21 @@ impl<'a, R: 'a + AsyncPositionRead> Attributes<'a, R> {
         }
     }
 
-    /// Creates an iterator emitting attribute values.
-    pub fn iter<V, I>(&mut self, loaders: I) -> iter::BorrowedStream<'_, 'a, R, I::IntoIter>
-    where
-        V: LoadAttribute,
-        I: IntoIterator<Item = V>,
-    {
-        iter::BorrowedStream::new(self, loaders.into_iter())
-    }
-
-    /// Creates an iterator emitting attribute values with buffered I/O.
-    pub fn iter_buffered<V, I>(
-        &mut self,
-        loaders: I,
-    ) -> iter::BorrowedStreamBuffered<'_, 'a, R, I::IntoIter>
-    where
-        R: io::BufRead,
-        V: LoadAttribute,
-        I: IntoIterator<Item = V>,
-    {
-        iter::BorrowedStreamBuffered::new(self, loaders.into_iter())
-    }
+    // /// Creates an iterator emitting attribute values.
+    // pub fn iter<V, I, O>(&mut self, loaders: I) -> iter::BorrowedStream<'_, 'a, R, I::IntoIter, O>
+    // where
+    //     I: IntoIterator<Item = V>,
+    //     V: LoadAttribute<Output = O>,
+    // {
+    //     iter::BorrowedStream::new(self, loaders.into_iter())
+    // }
 
     /// Creates an iterator emitting attribute values.
-    pub fn into_iter<V, I>(self, loaders: I) -> iter::OwnedIter<'a, R, I::IntoIter>
+    pub fn into_iter<V, I, O>(self, loaders: I) -> iter::OwnedIter<'a, R, I::IntoIter, O>
     where
-        V: LoadAttribute,
+        V: LoadAttribute<Output = O>,
         I: IntoIterator<Item = V>,
     {
         iter::OwnedIter::new(self, loaders.into_iter())
-    }
-
-    /// Creates an iterator emitting attribute values with buffered I/O.
-    pub fn into_iter_buffered<V, I>(self, loaders: I) -> iter::OwnedIterBuffered<'a, R, I::IntoIter>
-    where
-        R: io::BufRead,
-        V: LoadAttribute,
-        I: IntoIterator<Item = V>,
-    {
-        iter::OwnedIterBuffered::new(self, loaders.into_iter())
     }
 }

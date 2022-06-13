@@ -13,7 +13,7 @@ use fbxcel::{
         error::Warning,
     },
 };
-use futures_lite::io::Cursor;
+use futures_util::io::Cursor;
 
 use self::v7400::writer::{
     expect_fbx_end, expect_node_end, expect_node_start, CUSTOM_UNKNOWN1, MAGIC, UNKNOWN3,

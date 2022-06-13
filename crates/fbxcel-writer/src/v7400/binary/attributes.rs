@@ -7,7 +7,7 @@ use std::{
 
 use crate::v7400::binary::{Error, Result, Writer};
 use fbxcel_low::v7400::{ArrayAttributeEncoding, ArrayAttributeHeader, AttributeType};
-use futures_lite::{io, AsyncRead, AsyncSeek, AsyncSeekExt, AsyncWrite, AsyncWriteExt};
+use futures_util::{io, AsyncRead, AsyncSeek, AsyncSeekExt, AsyncWrite, AsyncWriteExt};
 
 use super::stream_position::StreamPosition;
 

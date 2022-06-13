@@ -2,7 +2,7 @@
 
 use crate::{v7400::LoadAttribute, Result};
 use async_trait::async_trait;
-use futures_lite::{AsyncBufRead, AsyncReadExt, Stream, StreamExt};
+use futures_util::{AsyncBufRead, AsyncReadExt, Stream, TryStreamExt};
 
 /// Loader for primitive types.
 ///

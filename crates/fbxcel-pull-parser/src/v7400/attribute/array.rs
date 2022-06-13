@@ -9,8 +9,7 @@ use std::{
 
 use async_compression::futures::bufread::ZlibDecoder;
 use byte_order_reader::{AsyncByteOrderRead, FromAsyncReader};
-use futures_core::Stream;
-use futures_lite::{ready, AsyncBufRead, AsyncRead, FutureExt};
+use futures_util::{ready, AsyncBufRead, AsyncRead, FutureExt, Stream};
 
 use fbxcel_low::v7400::ArrayAttributeEncoding;
 
@@ -54,9 +53,6 @@ impl<R: AsyncBufRead + Unpin> AsyncRead for AttributeStreamDecoder<R> {
 pub(crate) struct ArrayAttributeValues<R, E> {
     /// Decoded reader.
     reader: R,
-    // `total_elements`: unused.
-    ///// Number of total elements.
-    //total_elements: u32,
     /// Number of rest elements.
     rest_elements: u32,
     /// Whether an error is happened.
@@ -98,7 +94,7 @@ macro_rules! impl_array_attr_values {
                     return Poll::Ready(None);
                 }
                 Poll::Ready(
-                    match ready!(<$ty_elem>::from_async_reader(&mut this.reader).poll(cx)) {
+                    match ready!(<$ty_elem>::from_async_reader(&mut this.reader).poll_unpin(cx)) {
                         Ok(v) => {
                             this.rest_elements = this.rest_elements.checked_sub(1).expect(
                                 "This should be executed only when there are rest elements",
@@ -132,9 +128,6 @@ impl_array_attr_values! { f64, read_f64 }
 pub(crate) struct BooleanArrayAttributeValues<R> {
     /// Decoded reader.
     reader: R,
-    // `total_elements`: unused.
-    ///// Number of total elements.
-    //total_elements: u32,
     /// Number of rest elements.
     rest_elements: u32,
     /// Whether an error is happened.
@@ -171,11 +164,11 @@ impl<R: AsyncByteOrderRead + Unpin + Send> Stream for BooleanArrayAttributeValue
     type Item = Result<bool>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let this = self.get_mut();
-        if this.rest_elements == 0 {
+        if self.rest_elements == 0 {
             return Poll::Ready(None);
         }
-        Poll::Ready(match ready!(this.reader.read_u8().boxed().poll(cx)) {
+        let this = self.get_mut();
+        Poll::Ready(match ready!(this.reader.read_u8().boxed().poll_unpin(cx)) {
             Ok(raw) => {
                 this.rest_elements = this
                     .rest_elements

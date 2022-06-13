@@ -2,7 +2,7 @@
 
 use fbxcel_pull_parser::{v7400::Parser, AsyncPositionRead};
 use fbxcel_tree::v7400::{Loader as TreeLoader, Tree};
-use futures_lite::AsyncBufRead;
+use futures_util::AsyncBufRead;
 use log::trace;
 
 use crate::v7400::{

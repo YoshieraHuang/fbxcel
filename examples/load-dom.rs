@@ -1,6 +1,6 @@
-use std::{path::PathBuf};
+use std::path::PathBuf;
 
-use async_std::{io::BufReader, fs::File};
+use async_std::{fs::File, io::BufReader};
 use fbxcel_dom::any::AnyDocument;
 
 #[async_std::main]

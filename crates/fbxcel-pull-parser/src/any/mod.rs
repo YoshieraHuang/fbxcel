@@ -2,7 +2,7 @@
 
 use async_position_reader::{AsyncPositionRead, SeekableReader};
 use fbxcel_low::{FbxHeader, FbxVersion};
-use futures_lite::{AsyncRead, AsyncSeek};
+use futures_util::{AsyncRead, AsyncSeek};
 
 use crate::{v7400, ParserVersion};
 
@@ -46,7 +46,7 @@ pub async fn from_seekable_reader<R: AsyncRead + AsyncSeek + Unpin + Send>(
     let header = FbxHeader::load(&mut reader).await?;
     match parser_version(header)? {
         ParserVersion::V7400 => {
-            let parser = v7400::from_seekable_reader(header, reader).unwrap_or_else(|e| {
+            let parser = v7400::from_reader(header, reader).unwrap_or_else(|e| {
                 panic!(
                     "Should never fail: FBX version {:?} should be supported by v7400 parser: {}",
                     header.version(),

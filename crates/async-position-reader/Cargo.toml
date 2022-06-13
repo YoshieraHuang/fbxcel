@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-futures-lite = "1.12"
+futures-util = { version = "0.3", features = [ "io" ]}
 async-trait = "0.1"
 pin-project-lite = "0.2"
 

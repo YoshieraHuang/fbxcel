@@ -5,7 +5,7 @@
 
 use fbxcel_low::FbxVersion;
 use fbxcel_tree::any::AnyTree;
-use futures_lite::{AsyncBufRead, AsyncRead, AsyncSeek};
+use futures_util::{AsyncBufRead, AsyncRead, AsyncSeek};
 
 pub use self::error::{Error, Result};
 

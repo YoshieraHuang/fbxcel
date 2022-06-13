@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use async_std::fs::File;
 use fbxcel::tree::any::AnyTree;
-use futures_lite::io::BufReader;
+use futures_util::io::BufReader;
 
 #[async_std::main]
 async fn main() -> anyhow::Result<()> {
