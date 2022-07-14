@@ -2,7 +2,7 @@
 
 use indextree::Arena;
 use log::{debug, error, trace};
-use string_interner::StringInterner;
+use string_interner::{DefaultBackend, StringInterner};
 
 use crate::{
     low::v7400::FbxFooter,
@@ -19,13 +19,15 @@ pub struct Loader {
     /// Tree data.
     arena: Arena<NodeData>,
     /// Node name interner.
-    node_names: StringInterner<NodeNameSym>,
+    node_names: StringInterner<DefaultBackend<NodeNameSym>>,
     /// (Implicit) root node ID.
     root_id: NodeId,
 }
 
 impl Loader {
     /// Creates a new `Loader`.
+    #[inline]
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
