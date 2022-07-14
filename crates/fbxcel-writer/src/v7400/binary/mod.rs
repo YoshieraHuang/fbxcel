@@ -108,8 +108,6 @@ mod macros;
 mod attributes;
 mod error;
 mod footer;
-mod stream_position;
-use stream_position::StreamPosition;
 
 /// Binary writer.
 ///

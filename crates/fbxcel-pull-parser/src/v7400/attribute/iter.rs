@@ -5,8 +5,6 @@ use std::task::Context;
 use std::task::Poll;
 
 use async_position_reader::AsyncPositionRead;
-use futures_util::future::BoxFuture;
-use futures_util::ready;
 use futures_util::Stream;
 use futures_util::{AsyncBufRead, FutureExt};
 use pin_project_lite::pin_project;
@@ -18,7 +16,7 @@ use crate::{
 
 /// Creates size hint from the given attributes and loaders.
 fn make_size_hint_for_attrs<R, V>(
-    attributes: &Attributes<'_, R>,
+    attributes: &Attributes<R>,
     loaders: &impl Iterator<Item = V>,
 ) -> (usize, Option<usize>)
 where
@@ -111,63 +109,55 @@ where
 // // }
 
 pin_project! {
-    pub struct OwnedIter<'r, R, I, O> {
-        attributes: Attributes<'r, R>,
+    pub struct OwnedIter<'a, R, I> {
+        attributes: Attributes<'a, R>,
         loaders: I,
         exhausted: bool,
-        #[pin]
-        fut: Option<BoxFuture<'r, Result<Option<O>>>>
+        // #[pin]
+        // fut: Option<BoxFuture<'a, Result<Option<O>>>>
     }
 }
 
-impl<'r, R, I, V, O> OwnedIter<'r, R, I, O>
+impl<'a, R, I, V> OwnedIter<'a, R, I>
 where
     R: AsyncPositionRead,
     I: Iterator<Item = V>,
-    V: LoadAttribute<Output = O>,
+    V: LoadAttribute,
 {
     /// Creates a new `Iter`.
-    pub(crate) fn new(attributes: Attributes<'r, R>, loaders: I) -> Self {
+    pub(crate) fn new(attributes: Attributes<'a, R>, loaders: I) -> Self {
         Self {
             attributes,
             loaders,
             exhausted: false,
-            fut: None,
+            // fut: None,
         }
     }
 }
 
-impl<'r, R, I, V, O> Stream for OwnedIter<'r, R, I, O>
+impl<'a, R, I, V> Stream for OwnedIter<'a, R, I>
 where
     R: AsyncPositionRead + AsyncBufRead + Unpin + Send,
     I: Iterator<Item = V> + Unpin,
-    V: LoadAttribute<Output = O> + Send + 'r,
+    V: LoadAttribute + Send + 'a,
 {
     type Item = Result<V::Output>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
-        let mut this = self.project();
-        let mut fut = match this.fut.take() {
-            Some(fut) => fut,
+        let this = self.project();
+        match this.loaders.next() {
             None => {
-                match this.loaders.next() {
-                    None => {
-                        *this.exhausted = true;
-                        return Poll::Ready(None);
-                    }
-                    Some(loader) => {
-                        this.attributes.load_next(loader).boxed()
+                *this.exhausted = true;
+                return Poll::Ready(None);
+            }
+            Some(loader) => {
+                let mut fut = this.attributes.load_next(loader).boxed();
+                // Poll the future until ready to avoid temporary storage.
+                loop {
+                    if let Poll::Ready(res) = fut.poll_unpin(cx) {
+                        return Poll::Ready(res.transpose());
                     }
                 }
-            }
-        };
-        match fut.poll_unpin(cx) {
-            Poll::Pending => {
-                this.fut.set(Some(fut));
-                Poll::Pending
-            },
-            Poll::Ready(res) => {
-                Poll::Ready(res.transpose())
             }
         }
     }

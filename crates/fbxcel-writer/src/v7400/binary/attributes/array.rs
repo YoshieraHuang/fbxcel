@@ -3,34 +3,11 @@
 use std::convert::TryFrom;
 
 use crate::v7400::binary::{
-    attributes::IntoBytes, stream_position::StreamPosition, AttributesWriter, Error, Result,
+    attributes::IntoBytes, AttributesWriter, Error, Result,
 };
 use async_compression::futures::write::ZlibEncoder;
 use fbxcel_low::v7400::{ArrayAttributeEncoding, ArrayAttributeHeader, AttributeType};
-use futures_util::{io, AsyncSeek, AsyncWrite, AsyncWriteExt};
-
-// /// A trait for types which can be represented as multiple bytes array.
-// pub(crate) trait IntoBytesMulti<E>: Sized {
-//     /// Calls the given function with the bytes array multiple times.
-//     fn call_with_le_bytes_multi(
-//         self,
-//         f: impl FnMut(&[u8]) -> std::result::Result<(), E>,
-//     ) -> std::result::Result<usize, E>;
-// }
-
-// impl<T: IntoBytes, E, I: IntoIterator<Item = std::result::Result<T, E>>> IntoBytesMulti<E> for I {
-//     fn call_with_le_bytes_multi(
-//         self,
-//         mut f: impl FnMut(&[u8]) -> std::result::Result<(), E>,
-//     ) -> std::result::Result<usize, E> {
-//         let mut count = 0usize;
-//         self.into_iter()
-//             .inspect(|_| count = count.checked_add(1).expect("Too many elements"))
-//             .try_for_each(|elem| elem?.call_with_le_bytes(&mut f))?;
-
-//         Ok(count)
-//     }
-// }
+use futures_util::{io, AsyncSeek, AsyncWrite, AsyncWriteExt, AsyncSeekExt};
 
 /// Writes array elements into the given writer.
 pub(crate) async fn write_elements_result_iter<T, E>(

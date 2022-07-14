@@ -1,7 +1,7 @@
 //! FBX data tree loader.
 
 use fbxcel_low::v7400::FbxFooter;
-use futures_util::{AsyncBufRead, StreamExt};
+use futures_util::{AsyncBufRead, TryStreamExt};
 use indextree::Arena;
 use log::{debug, error, trace};
 use string_interner::StringInterner;

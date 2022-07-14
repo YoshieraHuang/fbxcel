@@ -275,9 +275,9 @@ impl<'a, R: 'a + AsyncPositionRead> Attributes<'a, R> {
     // }
 
     /// Creates an iterator emitting attribute values.
-    pub fn into_iter<V, I, O>(self, loaders: I) -> iter::OwnedIter<'a, R, I::IntoIter, O>
+    pub fn into_iter<V, I>(self, loaders: I) -> iter::OwnedIter<'a, R, I::IntoIter>
     where
-        V: LoadAttribute<Output = O>,
+        V: LoadAttribute,
         I: IntoIterator<Item = V>,
     {
         iter::OwnedIter::new(self, loaders.into_iter())
